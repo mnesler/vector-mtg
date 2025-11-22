@@ -7,6 +7,9 @@
 -- 3. Card-to-rule mapping with parameter binding
 -- 4. Rule interaction detection (combos, synergies)
 -- ============================================
+-- NOTE: This is the initial schema. Future changes should be done
+--       via migration scripts in migrations/ directory
+-- ============================================
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -18,8 +21,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================
 
 -- Cards table (enhanced for rule extraction)
-DROP TABLE IF EXISTS cards CASCADE;
-CREATE TABLE cards (
+CREATE TABLE IF NOT EXISTS cards (
     id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     mana_cost VARCHAR(100),
@@ -54,8 +56,7 @@ COMMENT ON COLUMN cards.keywords IS 'Extracted keywords and ability words from c
 -- ============================================
 
 -- Rule categories (hierarchical organization)
-DROP TABLE IF EXISTS rule_categories CASCADE;
-CREATE TABLE rule_categories (
+CREATE TABLE IF NOT EXISTS rule_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
@@ -68,12 +69,11 @@ CREATE TABLE rule_categories (
 
 COMMENT ON TABLE rule_categories IS 'Hierarchical categories for organizing MTG rules';
 
-CREATE INDEX idx_rule_categories_parent ON rule_categories(parent_category_id);
+CREATE INDEX IF NOT EXISTS idx_rule_categories_parent ON rule_categories(parent_category_id);
 
 
 -- Rules table (extracted patterns and templates)
-DROP TABLE IF EXISTS rules CASCADE;
-CREATE TABLE rules (
+CREATE TABLE IF NOT EXISTS rules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     rule_name VARCHAR(255) NOT NULL UNIQUE,
     rule_template TEXT NOT NULL,           -- Template: "Destroy target [card_type]"
@@ -96,9 +96,9 @@ COMMENT ON COLUMN rules.rule_pattern IS 'Regex pattern for text-based rule match
 COMMENT ON COLUMN rules.parameters IS 'JSON schema defining extractable parameters';
 COMMENT ON COLUMN rules.embedding IS 'Vector embedding for semantic rule matching';
 
-CREATE INDEX idx_rules_category ON rules(category_id);
-CREATE INDEX idx_rules_confidence ON rules(confidence);
-CREATE INDEX idx_rules_card_count ON rules(card_count DESC);
+CREATE INDEX IF NOT EXISTS idx_rules_category ON rules(category_id);
+CREATE INDEX IF NOT EXISTS idx_rules_confidence ON rules(confidence);
+CREATE INDEX IF NOT EXISTS idx_rules_card_count ON rules(card_count DESC);
 
 
 -- ============================================
@@ -106,8 +106,7 @@ CREATE INDEX idx_rules_card_count ON rules(card_count DESC);
 -- ============================================
 
 -- Card-to-Rule mappings (many-to-many)
-DROP TABLE IF EXISTS card_rules CASCADE;
-CREATE TABLE card_rules (
+CREATE TABLE IF NOT EXISTS card_rules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     card_id UUID NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     rule_id UUID NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
@@ -123,9 +122,9 @@ COMMENT ON TABLE card_rules IS 'Maps cards to applicable rules with parameter bi
 COMMENT ON COLUMN card_rules.parameter_bindings IS 'Extracted parameter values specific to this card';
 COMMENT ON COLUMN card_rules.extraction_method IS 'How this rule was matched to the card';
 
-CREATE INDEX idx_card_rules_card ON card_rules(card_id);
-CREATE INDEX idx_card_rules_rule ON card_rules(rule_id);
-CREATE INDEX idx_card_rules_confidence ON card_rules(confidence DESC);
+CREATE INDEX IF NOT EXISTS idx_card_rules_card ON card_rules(card_id);
+CREATE INDEX IF NOT EXISTS idx_card_rules_rule ON card_rules(rule_id);
+CREATE INDEX IF NOT EXISTS idx_card_rules_confidence ON card_rules(confidence DESC);
 
 
 -- ============================================
@@ -133,8 +132,7 @@ CREATE INDEX idx_card_rules_confidence ON card_rules(confidence DESC);
 -- ============================================
 
 -- Rule interaction patterns (combos, synergies, counters)
-DROP TABLE IF EXISTS rule_interactions CASCADE;
-CREATE TABLE rule_interactions (
+CREATE TABLE IF NOT EXISTS rule_interactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     rule_a_id UUID NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
     rule_b_id UUID NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
@@ -151,10 +149,10 @@ CREATE TABLE rule_interactions (
 
 COMMENT ON TABLE rule_interactions IS 'Known interactions between rule patterns (combos, synergies, counters)';
 
-CREATE INDEX idx_rule_interactions_a ON rule_interactions(rule_a_id);
-CREATE INDEX idx_rule_interactions_b ON rule_interactions(rule_b_id);
-CREATE INDEX idx_rule_interactions_type ON rule_interactions(interaction_type);
-CREATE INDEX idx_rule_interactions_strength ON rule_interactions(strength DESC);
+CREATE INDEX IF NOT EXISTS idx_rule_interactions_a ON rule_interactions(rule_a_id);
+CREATE INDEX IF NOT EXISTS idx_rule_interactions_b ON rule_interactions(rule_b_id);
+CREATE INDEX IF NOT EXISTS idx_rule_interactions_type ON rule_interactions(interaction_type);
+CREATE INDEX IF NOT EXISTS idx_rule_interactions_strength ON rule_interactions(strength DESC);
 
 
 -- ============================================
@@ -162,8 +160,7 @@ CREATE INDEX idx_rule_interactions_strength ON rule_interactions(strength DESC);
 -- ============================================
 
 -- Comprehensive keyword ability definitions
-DROP TABLE IF EXISTS keyword_abilities CASCADE;
-CREATE TABLE keyword_abilities (
+CREATE TABLE IF NOT EXISTS keyword_abilities (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     keyword VARCHAR(100) NOT NULL UNIQUE,
     description TEXT NOT NULL,
@@ -180,7 +177,7 @@ CREATE TABLE keyword_abilities (
 
 COMMENT ON TABLE keyword_abilities IS 'Standardized MTG keyword abilities and ability words';
 
-CREATE INDEX idx_keywords_evergreen ON keyword_abilities(is_evergreen);
+CREATE INDEX IF NOT EXISTS idx_keywords_evergreen ON keyword_abilities(is_evergreen);
 
 
 -- ============================================
@@ -188,8 +185,7 @@ CREATE INDEX idx_keywords_evergreen ON keyword_abilities(is_evergreen);
 -- ============================================
 
 -- Standardized card type hierarchies
-DROP TABLE IF EXISTS card_type_definitions CASCADE;
-CREATE TABLE card_type_definitions (
+CREATE TABLE IF NOT EXISTS card_type_definitions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     type_name VARCHAR(100) NOT NULL UNIQUE,
     supertype VARCHAR(50),                  -- 'Basic', 'Legendary', 'Snow', etc.
@@ -203,7 +199,7 @@ CREATE TABLE card_type_definitions (
 
 COMMENT ON TABLE card_type_definitions IS 'Card type taxonomy and inherent rules';
 
-CREATE INDEX idx_card_types_category ON card_type_definitions(type_category);
+CREATE INDEX IF NOT EXISTS idx_card_types_category ON card_type_definitions(type_category);
 
 
 -- ============================================
@@ -211,24 +207,24 @@ CREATE INDEX idx_card_types_category ON card_type_definitions(type_category);
 -- ============================================
 
 -- Standard card indexes
-CREATE INDEX idx_cards_name ON cards(name);
-CREATE INDEX idx_cards_name_lower ON cards(LOWER(name));
-CREATE INDEX idx_cards_type ON cards(type_line);
-CREATE INDEX idx_cards_set ON cards(set_code);
-CREATE INDEX idx_cards_rarity ON cards(rarity);
-CREATE INDEX idx_cards_colors ON cards USING GIN(colors);
-CREATE INDEX idx_cards_color_identity ON cards USING GIN(color_identity);
-CREATE INDEX idx_cards_keywords ON cards USING GIN(keywords);
-CREATE INDEX idx_cards_data_gin ON cards USING GIN(data jsonb_path_ops);
-CREATE INDEX idx_cards_cmc ON cards(cmc);
-CREATE INDEX idx_cards_released ON cards(released_at);
+CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
+CREATE INDEX IF NOT EXISTS idx_cards_name_lower ON cards(LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_cards_type ON cards(type_line);
+CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(set_code);
+CREATE INDEX IF NOT EXISTS idx_cards_rarity ON cards(rarity);
+CREATE INDEX IF NOT EXISTS idx_cards_colors ON cards USING GIN(colors);
+CREATE INDEX IF NOT EXISTS idx_cards_color_identity ON cards USING GIN(color_identity);
+CREATE INDEX IF NOT EXISTS idx_cards_keywords ON cards USING GIN(keywords);
+CREATE INDEX IF NOT EXISTS idx_cards_data_gin ON cards USING GIN(data jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_cards_cmc ON cards(cmc);
+CREATE INDEX IF NOT EXISTS idx_cards_released ON cards(released_at);
 
 -- Vector indexes (create AFTER loading embeddings for optimal performance)
 -- Uncomment after embeddings are generated:
--- CREATE INDEX idx_cards_embedding ON cards USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
--- CREATE INDEX idx_cards_oracle_embedding ON cards USING ivfflat (oracle_embedding vector_cosine_ops) WITH (lists = 100);
--- CREATE INDEX idx_rules_embedding ON rules USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
--- CREATE INDEX idx_keywords_embedding ON keyword_abilities USING ivfflat (embedding vector_cosine_ops) WITH (lists = 20);
+-- CREATE INDEX IF NOT EXISTS idx_cards_embedding ON cards USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- CREATE INDEX IF NOT EXISTS idx_cards_oracle_embedding ON cards USING ivfflat (oracle_embedding vector_cosine_ops) WITH (lists = 100);
+-- CREATE INDEX IF NOT EXISTS idx_rules_embedding ON rules USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+-- CREATE INDEX IF NOT EXISTS idx_keywords_embedding ON keyword_abilities USING ivfflat (embedding vector_cosine_ops) WITH (lists = 20);
 
 
 -- ============================================
