@@ -22,6 +22,8 @@ Instead of just finding similar cards, we want to:
 
 ### Enhanced Schema with Rules Support
 
+**Note:** The actual schema is in `schema_with_rules.sql` and uses `CREATE IF NOT EXISTS` for production safety. The examples below show the table structure.
+
 ```sql
 -- ============================================
 -- Core Tables
@@ -32,8 +34,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Cards table (enhanced for rule extraction)
-DROP TABLE IF EXISTS cards CASCADE;
-CREATE TABLE cards (
+CREATE TABLE IF NOT EXISTS cards (
     id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     mana_cost VARCHAR(100),
@@ -62,8 +63,7 @@ CREATE TABLE cards (
 -- ============================================
 
 -- Rule categories (high-level groupings)
-DROP TABLE IF EXISTS rule_categories CASCADE;
-CREATE TABLE rule_categories (
+CREATE TABLE IF NOT EXISTS rule_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
@@ -86,8 +86,7 @@ CREATE TABLE rule_categories (
 
 
 -- Rules table (extracted patterns)
-DROP TABLE IF EXISTS rules CASCADE;
-CREATE TABLE rules (
+CREATE TABLE IF NOT EXISTS rules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     rule_name VARCHAR(255) NOT NULL,
     rule_template TEXT NOT NULL,           -- Template: "Destroy target [card_type]"
@@ -120,8 +119,7 @@ CREATE TABLE rules (
 -- ============================================
 
 -- Many-to-many: Cards can follow multiple rules
-DROP TABLE IF EXISTS card_rules CASCADE;
-CREATE TABLE card_rules (
+CREATE TABLE IF NOT EXISTS card_rules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     card_id UUID NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     rule_id UUID NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
@@ -147,8 +145,7 @@ CREATE TABLE card_rules (
 -- ============================================
 
 -- Store known rule interactions/combinations
-DROP TABLE IF EXISTS rule_interactions CASCADE;
-CREATE TABLE rule_interactions (
+CREATE TABLE IF NOT EXISTS rule_interactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     rule_a_id UUID NOT NULL REFERENCES rules(id),
     rule_b_id UUID NOT NULL REFERENCES rules(id),
@@ -167,8 +164,7 @@ CREATE TABLE rule_interactions (
 -- ============================================
 
 -- Standardized card type hierarchies
-DROP TABLE IF EXISTS card_type_definitions CASCADE;
-CREATE TABLE card_type_definitions (
+CREATE TABLE IF NOT EXISTS card_type_definitions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     type_name VARCHAR(100) NOT NULL UNIQUE,
     supertype VARCHAR(50),                  -- 'basic', 'legendary', 'snow', etc.
@@ -185,8 +181,7 @@ CREATE TABLE card_type_definitions (
 -- ============================================
 
 -- Comprehensive keyword ability definitions
-DROP TABLE IF EXISTS keyword_abilities CASCADE;
-CREATE TABLE keyword_abilities (
+CREATE TABLE IF NOT EXISTS keyword_abilities (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     keyword VARCHAR(100) NOT NULL UNIQUE,
     description TEXT NOT NULL,

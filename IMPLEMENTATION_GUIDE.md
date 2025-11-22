@@ -9,6 +9,8 @@ This guide walks through implementing a complete MTG rule engine using vector em
 ## What We've Built
 
 ### 1. **Enhanced Schema** (`schema_with_rules.sql`)
+   - Production-ready schema using `CREATE IF NOT EXISTS` (no DROP CASCADE)
+   - Safe to re-run without data loss
    - Cards table with dual embeddings (full card + oracle text only)
    - Rules table for extracted patterns
    - Rule categories for organization
@@ -16,6 +18,7 @@ This guide walks through implementing a complete MTG rule engine using vector em
    - Rule interactions table (combos, synergies)
    - Keyword abilities catalog
    - Helpful views and functions
+   - Migration infrastructure in `migrations/` directory
 
 ### 2. **Card Loader** (`load_cards_with_keywords.py`)
    - Streams 2.3GB cards.json file
@@ -48,11 +51,14 @@ docker-compose up -d
 # Wait for database to be ready
 sleep 5
 
-# Create schema
+# Create initial schema (safe to re-run)
 docker exec -i vector-mtg-postgres psql -U postgres -d vector_mtg < schema_with_rules.sql
 
 # Or if running locally:
 psql -U postgres -d vector_mtg -f schema_with_rules.sql
+
+# Note: Schema uses CREATE IF NOT EXISTS, so it's safe to run multiple times
+# Future schema changes should use migration scripts in migrations/ directory
 ```
 
 ### Step 2: Load Card Data
@@ -312,6 +318,55 @@ GET /api/stats/rules
 - **Meta Analysis**: Analyze tournament decks to find emerging rule patterns
 - **Card Generation**: Generate new card ideas based on rule combinations
 - **Format Analysis**: Analyze rule distribution across formats (Standard, Modern, Commander)
+
+---
+
+## Schema Changes & Migrations
+
+### Making Schema Changes
+
+**NEVER modify `schema_with_rules.sql` directly after initial setup!**
+
+Instead, create a migration:
+
+```bash
+# 1. Create a new migration file
+cat > migrations/$(date +%Y%m%d_%H%M)_your_change_description.sql << 'EOF'
+-- Migration: Add complexity scoring for cards
+-- Created: $(date +%Y-%m-%d)
+-- Author: Your Name
+
+BEGIN;
+
+-- Add new column
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS complexity_score INTEGER;
+
+-- Add index
+CREATE INDEX IF NOT EXISTS idx_cards_complexity ON cards(complexity_score);
+
+COMMIT;
+
+-- Rollback:
+-- BEGIN;
+-- DROP INDEX IF EXISTS idx_cards_complexity;
+-- ALTER TABLE cards DROP COLUMN IF EXISTS complexity_score;
+-- COMMIT;
+EOF
+
+# 2. Apply the migration
+psql -U postgres -d vector_mtg -f migrations/20251122_1430_your_change.sql
+```
+
+### Migration Best Practices
+
+- **Always use `IF NOT EXISTS` / `IF EXISTS`** - Makes migrations idempotent
+- **Wrap in transactions** - Use `BEGIN/COMMIT` for atomicity
+- **Document rollback** - Show how to undo the migration
+- **Test first** - Apply to a test database before production
+- **One change per migration** - Easier to track and rollback
+- **Never modify existing migrations** - Create new ones instead
+
+See `migrations/README.md` for detailed guidelines.
 
 ---
 

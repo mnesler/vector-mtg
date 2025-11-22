@@ -1,6 +1,58 @@
 # vector-mtg
 
-A project for working with Magic: The Gathering card data using vector databases and PostgreSQL.
+A vector-powered MTG rule engine for extracting, classifying, and analyzing Magic: The Gathering card mechanics using PostgreSQL and embeddings.
+
+## Project Overview
+
+This project combines:
+- **Vector Embeddings**: Semantic similarity search for cards and mechanics
+- **Rule Extraction**: Automatic discovery of common MTG patterns (removal, card draw, etc.)
+- **Rule Engine**: Classification system mapping cards to standardized rules
+- **Parameter Binding**: Extract specific values from card text (damage amounts, target types)
+- **Interaction Detection**: Discover combos, synergies, and counters
+
+## Quick Start
+
+```bash
+# 1. Start PostgreSQL
+docker-compose up -d
+
+# 2. Create schema
+psql -U postgres -d vector_mtg -f schema_with_rules.sql
+
+# 3. Load cards
+python load_cards_with_keywords.py
+
+# 4. Seed rules
+psql -U postgres -d vector_mtg -f seed_rules.sql
+```
+
+See [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) for detailed instructions.
+
+## Documentation
+
+- **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** - Complete setup and usage guide
+- **[RULE_ENGINE_ARCHITECTURE.md](RULE_ENGINE_ARCHITECTURE.md)** - Rule engine architecture and design
+- **[VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md)** - Visualization and API documentation
+- **[migrations/README.md](migrations/README.md)** - Database migration guidelines
+
+## Schema Changes
+
+**Important:** Never modify `schema_with_rules.sql` after initial setup. All schema changes must be done via migration scripts in `migrations/` directory.
+
+```bash
+# Create a migration
+cat > migrations/$(date +%Y%m%d_%H%M)_description.sql << 'EOF'
+BEGIN;
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS new_field TEXT;
+COMMIT;
+EOF
+
+# Apply migration
+psql -U postgres -d vector_mtg -f migrations/20251122_1430_description.sql
+```
+
+See [migrations/README.md](migrations/README.md) for best practices.
 
 ## Dataset
 
