@@ -131,6 +131,7 @@ function renderCardCard(card) {
     try {
         const rules = card.rules || [];
         const hasRules = rules.length > 0;
+        const hasImage = card.image_normal || card.image_small;
 
         // Escape HTML to prevent injection and rendering issues
         const escapeName = (card.name || 'Unknown').replace(/[<>&"']/g, c => ({
@@ -142,48 +143,53 @@ function renderCardCard(card) {
         })[c]);
 
         return `
-            <div class="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-blue-500 transition-colors">
-                <div class="mb-3">
-                    <h3 class="text-lg font-bold text-white">${escapeName}</h3>
-                    <div class="flex items-center gap-2 mt-1">
-                        ${card.mana_cost ? `<span class="text-sm font-mono text-blue-300">${escapeText(card.mana_cost)}</span>` : ''}
-                        ${card.cmc ? `<span class="text-xs text-gray-500">CMC ${card.cmc}</span>` : ''}
-                    </div>
-                </div>
-
-                <p class="text-sm text-gray-400 mb-3">${escapeText(card.type_line)}</p>
-
-                ${card.oracle_text ? `
-                    <p class="text-sm text-gray-300 mb-4 line-clamp-3">
-                        ${escapeText(card.oracle_text)}
-                    </p>
-                ` : ''}
-
-                ${hasRules ? `
-                    <div class="mb-3">
-                        <p class="text-xs text-gray-500 mb-2">Matched Rules:</p>
-                        <div class="flex flex-wrap gap-1">
-                            ${rules.slice(0, 3).map(rule => `
-                                <span class="inline-block px-2 py-1 rounded text-xs font-semibold"
-                                      style="background-color: ${getCategoryColor(rule.category_name)}33; color: ${getCategoryColor(rule.category_name)}">
-                                    ${(rule.rule_name || '').replace(/_/g, ' ')}
-                                </span>
-                            `).join('')}
-                            ${rules.length > 3 ? `<span class="text-xs text-gray-500 self-center">+${rules.length - 3} more</span>` : ''}
+            <div class="bg-gray-800 rounded border border-gray-700 hover:border-blue-500 transition-colors cursor-pointer overflow-hidden">
+                ${hasImage ? `
+                    <div class="relative aspect-[5/7] bg-gray-900">
+                        <img
+                            src="${card.image_small || card.image_normal}"
+                            alt="${escapeName}"
+                            class="w-full h-full object-cover"
+                            loading="lazy"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                        />
+                        <div class="hidden absolute inset-0 items-center justify-center bg-gray-900 text-gray-500">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                         </div>
                     </div>
-                ` : ''}
-
-                ${card.keywords && card.keywords.length > 0 ? `
-                    <div class="text-xs text-gray-500">
-                        Keywords: ${card.keywords.slice(0, 3).map(k => escapeText(k)).join(', ')}${card.keywords.length > 3 ? '...' : ''}
+                    <div class="p-1.5 bg-gray-800">
+                        <h3 class="text-xs font-semibold text-white truncate" title="${escapeName}">${escapeName}</h3>
+                        ${card.mana_cost ? `<p class="text-xs text-blue-300 font-mono truncate">${escapeText(card.mana_cost)}</p>` : ''}
+                        <p class="text-xs text-gray-400 truncate">${escapeText(card.type_line || '')}</p>
+                        ${hasRules ? `
+                            <div class="flex flex-wrap gap-0.5 mt-1">
+                                ${rules.slice(0, 3).map(rule => `
+                                    <span class="text-xs px-1 py-0.5 bg-purple-900/50 text-purple-300 rounded" title="${escapeText(rule.rule_name)}">
+                                        ${escapeText(rule.rule_name.split('_')[0])}
+                                    </span>
+                                `).join('')}
+                                ${rules.length > 3 ? `<span class="text-xs text-gray-500">+${rules.length - 3}</span>` : ''}
+                            </div>
+                        ` : ''}
                     </div>
-                ` : ''}
+                ` : `
+                    <div class="p-2 bg-gray-900">
+                        <h3 class="text-xs font-bold text-white mb-1">${escapeName}</h3>
+                        <p class="text-xs text-gray-400 mb-1">${escapeText(card.type_line)}</p>
+                        ${card.oracle_text ? `
+                            <p class="text-xs text-gray-300 line-clamp-3">
+                                ${escapeText(card.oracle_text)}
+                            </p>
+                        ` : ''}
+                    </div>
+                `}
             </div>
         `;
     } catch (error) {
         console.error('Error rendering card:', card, error);
-        return `<div class="bg-red-900 rounded-lg p-5 border border-red-700">Error rendering card: ${card?.name || 'Unknown'}</div>`;
+        return `<div class="bg-red-900 rounded p-2 border border-red-700 text-xs">Error: ${card?.name || 'Unknown'}</div>`;
     }
 }
 

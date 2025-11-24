@@ -119,7 +119,10 @@ class MTGRuleEngine:
                     oracle_text,
                     set_code,
                     released_at,
-                    keywords
+                    keywords,
+                    data->'image_uris'->>'small' as image_small,
+                    data->'image_uris'->>'normal' as image_normal,
+                    data->'image_uris'->>'large' as image_large
                 FROM cards
                 WHERE {where_conditions}
                 ORDER BY name, released_at DESC NULLS LAST
@@ -166,6 +169,9 @@ class MTGRuleEngine:
                     c.oracle_text,
                     c.set_code,
                     c.released_at,
+                    c.data->'image_uris'->>'small' as image_small,
+                    c.data->'image_uris'->>'normal' as image_normal,
+                    c.data->'image_uris'->>'large' as image_large,
                     cr.confidence,
                     cr.parameter_bindings
                 FROM cards c
