@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Rule Engine - Deck Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-gray-800 border-b border-gray-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                        MTG Rule Engine
+                    </h1>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="index.html" class="text-gray-400 hover:text-gray-300">Dashboard</a>
+                    <a href="cards.html" class="text-gray-400 hover:text-gray-300">Cards</a>
+                    <a href="rules.html" class="text-gray-400 hover:text-gray-300">Rules</a>
+                    <a href="deck.html" class="text-blue-400 hover:text-blue-300 font-semibold">Deck Analyzer</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold mb-2">Deck Analyzer</h2>
+            <p class="text-gray-400">Analyze your deck's rule composition and find patterns</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Input Section -->
+            <div>
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                    <h3 class="text-xl font-semibold mb-4">Deck List</h3>
+                    <p class="text-sm text-gray-400 mb-3">
+                        Enter your deck list (one card per line). Format: "Quantity Card Name" or just "Card Name"
+                    </p>
+                    <textarea
+                        id="deckInput"
+                        rows="15"
+                        placeholder="1 Lightning Bolt&#10;1 Counterspell&#10;1 Sol Ring&#10;1 Birds of Paradise"
+                        class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded focus:outline-none focus:border-blue-500 font-mono text-sm"
+                    ></textarea>
+
+                    <div class="mt-4 flex gap-3">
+                        <button
+                            onclick="analyzeDeck()"
+                            class="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded font-semibold"
+                        >
+                            Analyze Deck
+                        </button>
+                        <button
+                            onclick="clearDeck()"
+                            class="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Example Decks -->
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h3 class="text-lg font-semibold mb-3">Load Example Deck</h3>
+                    <div class="space-y-2">
+                        <button onclick="loadExample('aggro')" class="w-full text-left px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">
+                            Red Aggro
+                        </button>
+                        <button onclick="loadExample('control')" class="w-full text-left px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">
+                            Blue Control
+                        </button>
+                        <button onclick="loadExample('ramp')" class="w-full text-left px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">
+                            Green Ramp
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div>
+                <div id="resultsSection" class="hidden">
+                    <!-- Summary -->
+                    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                        <h3 class="text-xl font-semibold mb-4">Summary</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-400">Total Cards</p>
+                                <p class="text-2xl font-bold" id="totalCards">0</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">Cards Found</p>
+                                <p class="text-2xl font-bold" id="cardsFound">0</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">With Rules</p>
+                                <p class="text-2xl font-bold" id="cardsWithRules">0</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">Unique Rules</p>
+                                <p class="text-2xl font-bold" id="uniqueRules">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Category Chart -->
+                    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                        <h3 class="text-xl font-semibold mb-4">Category Distribution</h3>
+                        <canvas id="categoryPieChart"></canvas>
+                    </div>
+
+                    <!-- Top Rules -->
+                    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                        <h3 class="text-xl font-semibold mb-4">Top Rules in Deck</h3>
+                        <div id="topRulesList" class="space-y-3">
+                            <!-- Rules will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+                    <svg class="mx-auto h-16 w-16 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <h3 class="mt-4 text-lg font-semibold text-gray-400">No Analysis Yet</h3>
+                    <p class="mt-2 text-gray-500">Enter a deck list and click "Analyze Deck"</p>
+                </div>
+
+                <!-- Loading State -->
+                <div id="loadingState" class="hidden bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                    <p class="mt-4 text-gray-400">Analyzing deck...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/api.js"></script>
+    <script src="js/deck.js"></script>
+</body>
+</html>

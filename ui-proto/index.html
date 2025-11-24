@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Rule Engine - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-gray-800 border-b border-gray-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                        MTG Rule Engine
+                    </h1>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="index.html" class="text-blue-400 hover:text-blue-300 font-semibold">Dashboard</a>
+                    <a href="cards.html" class="text-gray-400 hover:text-gray-300">Cards</a>
+                    <a href="rules.html" class="text-gray-400 hover:text-gray-300">Rules</a>
+                    <a href="deck.html" class="text-gray-400 hover:text-gray-300">Deck Analyzer</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Quick Search -->
+        <div class="mb-8">
+            <div class="max-w-2xl mx-auto">
+                <input
+                    type="text"
+                    id="quickSearch"
+                    placeholder="Quick search for a card..."
+                    class="w-full px-6 py-4 bg-gray-800 border border-gray-700 rounded-lg text-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                >
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="dashboardLoading" class="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div class="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center">
+                <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mb-4"></div>
+                <p class="text-lg text-gray-300">Loading dashboard...</p>
+                <p class="text-sm text-gray-500 mt-2">Fetching statistics and charts</p>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" id="statsGrid">
+            <!-- Stats will be populated by JS -->
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Top Rules Chart -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4">Top 10 Rules by Card Count</h2>
+                <div id="topRulesChartLoading" class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                        <p class="mt-3 text-sm text-gray-400">Loading chart...</p>
+                    </div>
+                </div>
+                <canvas id="topRulesChart" class="hidden"></canvas>
+            </div>
+
+            <!-- Category Distribution -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4">Rule Categories</h2>
+                <div id="categoryChartLoading" class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+                        <p class="mt-3 text-sm text-gray-400">Loading chart...</p>
+                    </div>
+                </div>
+                <canvas id="categoryChart" class="hidden"></canvas>
+            </div>
+        </div>
+
+        <!-- Top Rules Table -->
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 class="text-xl font-semibold mb-4">Popular Rules</h2>
+            <div id="tableLoading" class="flex items-center justify-center py-12">
+                <div class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+                    <p class="mt-3 text-sm text-gray-400">Loading table...</p>
+                </div>
+            </div>
+            <div class="overflow-x-auto hidden" id="tableContainer">
+                <table class="w-full" id="topRulesTable">
+                    <thead>
+                        <tr class="border-b border-gray-700">
+                            <th class="text-left py-3 px-4">Rule Name</th>
+                            <th class="text-left py-3 px-4">Category</th>
+                            <th class="text-right py-3 px-4">Card Count</th>
+                            <th class="text-right py-3 px-4">Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        <!-- Table rows will be populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 border-t border-gray-700 mt-12 py-6">
+        <div class="container mx-auto px-4 text-center text-gray-400">
+            <p>MTG Rule Engine v1.0 | API Docs: <a href="http://localhost:8000/docs" class="text-blue-400 hover:underline" target="_blank">localhost:8000/docs</a></p>
+        </div>
+    </footer>
+
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

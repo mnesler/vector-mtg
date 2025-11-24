@@ -271,9 +271,8 @@ SELECT
     r.is_manual,
     COUNT(cr.card_id) as card_count,
     AVG(cr.confidence) as avg_match_confidence,
-    array_agg(c.name ORDER BY cr.confidence DESC)
-        FILTER (WHERE c.name IS NOT NULL)
-        LIMIT 10 as example_cards
+    (array_agg(c.name ORDER BY cr.confidence DESC)
+        FILTER (WHERE c.name IS NOT NULL))[1:10] as example_cards
 FROM rules r
 LEFT JOIN rule_categories rc ON r.category_id = rc.id
 LEFT JOIN card_rules cr ON r.id = cr.rule_id
@@ -318,7 +317,7 @@ WITH RECURSIVE category_tree AS (
         name,
         description,
         parent_category_id,
-        name as path,
+        name::VARCHAR as path,
         0 as depth
     FROM rule_categories
     WHERE parent_category_id IS NULL
@@ -331,7 +330,7 @@ WITH RECURSIVE category_tree AS (
         rc.name,
         rc.description,
         rc.parent_category_id,
-        ct.path || ' > ' || rc.name as path,
+        (ct.path || ' > ' || rc.name)::VARCHAR as path,
         ct.depth + 1 as depth
     FROM rule_categories rc
     INNER JOIN category_tree ct ON rc.parent_category_id = ct.id

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Rule Engine - Rule Browser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-gray-800 border-b border-gray-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                        MTG Rule Engine
+                    </h1>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="index.html" class="text-gray-400 hover:text-gray-300">Dashboard</a>
+                    <a href="cards.html" class="text-gray-400 hover:text-gray-300">Cards</a>
+                    <a href="rules.html" class="text-blue-400 hover:text-blue-300 font-semibold">Rules</a>
+                    <a href="deck.html" class="text-gray-400 hover:text-gray-300">Deck Analyzer</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold mb-2">Rule Browser</h2>
+            <p class="text-gray-400">Explore all 45 rules used to classify MTG cards</p>
+        </div>
+
+        <!-- Category Filter -->
+        <div class="mb-6">
+            <div class="flex flex-wrap gap-2" id="categoryFilters">
+                <button onclick="filterByCategory(null)" class="category-btn active px-4 py-2 rounded bg-gray-700 hover:bg-gray-600">
+                    All Rules
+                </button>
+                <!-- Categories will be populated here -->
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="mb-6">
+            <input
+                type="text"
+                id="ruleSearch"
+                placeholder="Search rules..."
+                class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500"
+                oninput="filterRules()"
+            >
+        </div>
+
+        <!-- Rules Grid -->
+        <div id="rulesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Rules will be populated here -->
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <p class="mt-4 text-gray-400">Loading rules...</p>
+        </div>
+    </main>
+
+    <!-- Rule Detail Modal -->
+    <div id="ruleModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-700 flex justify-between items-start">
+                <div>
+                    <h3 class="text-2xl font-bold" id="modalRuleName"></h3>
+                    <p class="text-gray-400 mt-1" id="modalCategory"></p>
+                </div>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6">
+                <div class="mb-6">
+                    <h4 class="font-semibold mb-2">Rule Template</h4>
+                    <p class="text-gray-300 bg-gray-900 p-3 rounded" id="modalTemplate"></p>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-semibold">Matching Cards (<span id="modalCardCount">0</span>)</h4>
+                        <span class="text-sm text-gray-400">Showing first 20</span>
+                    </div>
+                    <div id="modalCards" class="space-y-2">
+                        <!-- Cards will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/rules.js"></script>
+</body>
+</html>

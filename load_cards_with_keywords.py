@@ -56,7 +56,7 @@ COMMON_KEYWORDS = [
 ABILITY_WORDS = [
     'adamant', 'addendum', 'alliance', 'battalion', 'bloodrush',
     'channel', 'chroma', 'cohort', 'constellation', 'converge',
-    'council\\'s dilemma', 'coven', 'delirium', 'domain', 'eminence',
+    "council's dilemma", 'coven', 'delirium', 'domain', 'eminence',
     'enrage', 'fateful hour', 'ferocious', 'formidable', 'grandeur',
     'hellbent', 'heroic', 'imprint', 'inspired', 'join forces',
     'kinship', 'landfall', 'lieutenant', 'magecraft', 'metalcraft',

@@ -1,0 +1,164 @@
+/* Custom styles for MTG Rule Engine UI */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Active category button */
+.category-btn.active {
+    background-color: #2563eb !important;
+}
+
+/* Smooth transitions */
+.transition-colors {
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Card hover effect */
+.hover\\:border-blue-500:hover {
+    border-color: #3b82f6;
+}
+
+/* Gradient text */
+.bg-clip-text {
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Chart containers */
+canvas {
+    max-height: 300px;
+}
+
+/* Loading spinner */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Smooth loading overlay fade */
+#dashboardLoading {
+    transition: opacity 0.3s ease-out;
+}
+
+/* Modal overlay */
+#ruleModal {
+    backdrop-filter: blur(4px);
+}
+
+/* Table styles */
+table {
+    border-collapse: collapse;
+}
+
+table thead tr {
+    border-bottom: 1px solid #374151;
+}
+
+table tbody tr {
+    border-bottom: 1px solid #1f2937;
+}
+
+table tbody tr:last-child {
+    border-bottom: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    canvas {
+        max-height: 250px;
+    }
+}
+
+/* Print styles */
+@media print {
+    nav, footer {
+        display: none;
+    }
+
+    .bg-gray-900 {
+        background-color: white !important;
+        color: black !important;
+    }
+}
+
+/* Focus styles for accessibility */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Custom mana symbol styles (if needed in future) */
+.mana-symbol {
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    vertical-align: middle;
+}
