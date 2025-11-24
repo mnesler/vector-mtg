@@ -140,7 +140,7 @@ async def root():
 
 @app.get("/api/cards/search", tags=["Cards"])
 async def search_cards(
-    name: Optional[str] = Query(None, description="Card name (exact match)"),
+    name: Optional[str] = Query(None, description="Card name search (partial match, returns multiple)"),
     rule: Optional[str] = Query(None, description="Filter by rule name"),
     limit: int = Query(50, ge=1, le=500)
 ):
@@ -148,28 +148,47 @@ async def search_cards(
     Search for cards by name or rule.
 
     Examples:
-    - /api/cards/search?name=Lightning Bolt
+    - /api/cards/search?name=Lightning&limit=20  (returns all cards with "Lightning" in name)
+    - /api/cards/search?name=Birds of Paradise  (returns all cards matching the pattern)
     - /api/cards/search?rule=flying_keyword&limit=20
     """
     engine = get_engine()
 
     if name:
-        card = engine.get_card_by_name(name)
-        if not card:
-            raise HTTPException(status_code=404, detail=f"Card '{name}' not found")
+        # Search for multiple cards matching the name pattern
+        cards = engine.search_cards_by_name(name, limit=limit)
 
-        rules = engine.get_card_rules(card['id'])
+        # For each card, get its rules
+        result_cards = []
+        for card in cards:
+            rules = engine.get_card_rules(card['id'])
+            result_cards.append({
+                **dict(card),
+                "rules": [dict(r) for r in rules]
+            })
+
         return {
-            **dict(card),
-            "rules": [dict(r) for r in rules]
+            "search_term": name,
+            "count": len(result_cards),
+            "cards": result_cards
         }
 
     if rule:
         cards = engine.find_cards_by_rule(rule, limit=limit)
+
+        # Add rules to each card
+        result_cards = []
+        for card in cards:
+            rules = engine.get_card_rules(card['id'])
+            result_cards.append({
+                **dict(card),
+                "rules": [dict(r) for r in rules]
+            })
+
         return {
             "rule": rule,
-            "count": len(cards),
-            "cards": [dict(c) for c in cards]
+            "count": len(result_cards),
+            "cards": result_cards
         }
 
     raise HTTPException(status_code=400, detail="Must provide either 'name' or 'rule' parameter")

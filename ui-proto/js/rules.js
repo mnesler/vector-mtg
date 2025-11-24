@@ -41,14 +41,16 @@ async function loadRules() {
 function renderCategoryFilters() {
     const container = document.getElementById('categoryFilters');
 
-    // Add category buttons
-    allCategories.forEach(category => {
-        const button = document.createElement('button');
-        button.className = 'category-btn px-4 py-2 rounded bg-gray-700 hover:bg-gray-600';
-        button.textContent = `${category.name} (${formatNumber(category.card_count)})`;
-        button.onclick = () => filterByCategory(category.name);
-        container.appendChild(button);
-    });
+    // Add category buttons (only for categories with cards)
+    allCategories
+        .filter(category => category.card_count > 0)
+        .forEach(category => {
+            const button = document.createElement('button');
+            button.className = 'category-btn px-4 py-2 rounded bg-gray-700 hover:bg-gray-600';
+            button.textContent = `${category.name} (${formatNumber(category.card_count)})`;
+            button.onclick = () => filterByCategory(category.name);
+            container.appendChild(button);
+        });
 }
 
 function filterByCategory(category) {

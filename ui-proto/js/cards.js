@@ -59,18 +59,21 @@ async function searchByName() {
 
     try {
         const result = await api.searchCard(query);
+        console.log('Search result:', result);
 
-        if (result.rules) {
-            // Single card result
-            currentResults = [result];
+        // New API returns {cards: [...], count: N, search_term: "..."}
+        if (result.cards && Array.isArray(result.cards)) {
+            currentResults = result.cards;
+            console.log(`Found ${currentResults.length} cards`);
         } else {
             currentResults = [];
+            console.log('No cards in result, result structure:', Object.keys(result));
         }
 
         renderResults(`Search: "${query}"`, currentResults.length);
     } catch (error) {
         console.error('Search failed:', error);
-        showError('Card not found or API error');
+        showError('No cards found or API error');
     }
 }
 
@@ -98,6 +101,8 @@ async function searchByRule() {
 }
 
 function renderResults(title, count) {
+    console.log(`renderResults called: title="${title}", count=${count}, currentResults.length=${currentResults.length}`);
+
     document.getElementById('emptyState').classList.add('hidden');
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('resultsSection').classList.remove('hidden');
@@ -108,57 +113,78 @@ function renderResults(title, count) {
     const grid = document.getElementById('cardGrid');
 
     if (currentResults.length === 0) {
+        console.log('No results to display');
         grid.innerHTML = '<div class="col-span-3 text-center py-8 text-gray-400">No cards found</div>';
         return;
     }
 
-    grid.innerHTML = currentResults.map(card => renderCardCard(card)).join('');
+    console.log(`Rendering ${currentResults.length} cards`);
+    console.log('Grid element:', grid);
+    const html = currentResults.map(card => renderCardCard(card)).join('');
+    console.log(`Generated HTML length: ${html.length}`);
+    console.log('First 200 chars of HTML:', html.substring(0, 200));
+    grid.innerHTML = html;
+    console.log('HTML inserted, grid children count:', grid.children.length);
 }
 
 function renderCardCard(card) {
-    const rules = card.rules || [];
-    const hasRules = rules.length > 0;
+    try {
+        const rules = card.rules || [];
+        const hasRules = rules.length > 0;
 
-    return `
-        <div class="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-blue-500 transition-colors">
-            <div class="mb-3">
-                <h3 class="text-lg font-bold text-white">${card.name}</h3>
-                <div class="flex items-center gap-2 mt-1">
-                    ${card.mana_cost ? `<span class="text-sm font-mono text-blue-300">${card.mana_cost}</span>` : ''}
-                    ${card.cmc ? `<span class="text-xs text-gray-500">CMC ${card.cmc}</span>` : ''}
-                </div>
-            </div>
+        // Escape HTML to prevent injection and rendering issues
+        const escapeName = (card.name || 'Unknown').replace(/[<>&"']/g, c => ({
+            '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;'
+        })[c]);
 
-            <p class="text-sm text-gray-400 mb-3">${card.type_line}</p>
+        const escapeText = (text) => (text || '').replace(/[<>&"']/g, c => ({
+            '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;'
+        })[c]);
 
-            ${card.oracle_text ? `
-                <p class="text-sm text-gray-300 mb-4 line-clamp-3">
-                    ${card.oracle_text}
-                </p>
-            ` : ''}
-
-            ${hasRules ? `
+        return `
+            <div class="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-blue-500 transition-colors">
                 <div class="mb-3">
-                    <p class="text-xs text-gray-500 mb-2">Matched Rules:</p>
-                    <div class="flex flex-wrap gap-1">
-                        ${rules.slice(0, 3).map(rule => `
-                            <span class="inline-block px-2 py-1 rounded text-xs font-semibold"
-                                  style="background-color: ${getCategoryColor(rule.category_name)}33; color: ${getCategoryColor(rule.category_name)}">
-                                ${rule.rule_name.replace(/_/g, ' ')}
-                            </span>
-                        `).join('')}
-                        ${rules.length > 3 ? `<span class="text-xs text-gray-500 self-center">+${rules.length - 3} more</span>` : ''}
+                    <h3 class="text-lg font-bold text-white">${escapeName}</h3>
+                    <div class="flex items-center gap-2 mt-1">
+                        ${card.mana_cost ? `<span class="text-sm font-mono text-blue-300">${escapeText(card.mana_cost)}</span>` : ''}
+                        ${card.cmc ? `<span class="text-xs text-gray-500">CMC ${card.cmc}</span>` : ''}
                     </div>
                 </div>
-            ` : ''}
 
-            ${card.keywords && card.keywords.length > 0 ? `
-                <div class="text-xs text-gray-500">
-                    Keywords: ${card.keywords.slice(0, 3).join(', ')}${card.keywords.length > 3 ? '...' : ''}
-                </div>
-            ` : ''}
-        </div>
-    `;
+                <p class="text-sm text-gray-400 mb-3">${escapeText(card.type_line)}</p>
+
+                ${card.oracle_text ? `
+                    <p class="text-sm text-gray-300 mb-4 line-clamp-3">
+                        ${escapeText(card.oracle_text)}
+                    </p>
+                ` : ''}
+
+                ${hasRules ? `
+                    <div class="mb-3">
+                        <p class="text-xs text-gray-500 mb-2">Matched Rules:</p>
+                        <div class="flex flex-wrap gap-1">
+                            ${rules.slice(0, 3).map(rule => `
+                                <span class="inline-block px-2 py-1 rounded text-xs font-semibold"
+                                      style="background-color: ${getCategoryColor(rule.category_name)}33; color: ${getCategoryColor(rule.category_name)}">
+                                    ${(rule.rule_name || '').replace(/_/g, ' ')}
+                                </span>
+                            `).join('')}
+                            ${rules.length > 3 ? `<span class="text-xs text-gray-500 self-center">+${rules.length - 3} more</span>` : ''}
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${card.keywords && card.keywords.length > 0 ? `
+                    <div class="text-xs text-gray-500">
+                        Keywords: ${card.keywords.slice(0, 3).map(k => escapeText(k)).join(', ')}${card.keywords.length > 3 ? '...' : ''}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error rendering card:', card, error);
+        return `<div class="bg-red-900 rounded-lg p-5 border border-red-700">Error rendering card: ${card?.name || 'Unknown'}</div>`;
+    }
 }
 
 function showLoading() {

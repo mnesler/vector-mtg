@@ -93,6 +93,40 @@ class MTGRuleEngine:
 
             return result
 
+    def search_cards_by_name(self, search_term: str, limit: int = 50) -> List[Dict]:
+        """
+        Search for multiple cards by name pattern.
+        Returns all cards matching the search term (deduplicated by name, most recent).
+        """
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Tokenize search term
+            words = [w.strip() for w in search_term.split() if w.strip()]
+
+            if not words:
+                return []
+
+            # Build WHERE clause with ILIKE for each word
+            where_conditions = " AND ".join([f"name ILIKE %s" for _ in words])
+            word_patterns = [f'%{word}%' for word in words]
+
+            cursor.execute(f"""
+                SELECT DISTINCT ON (name)
+                    id,
+                    name,
+                    mana_cost,
+                    cmc,
+                    type_line,
+                    oracle_text,
+                    set_code,
+                    released_at,
+                    keywords
+                FROM cards
+                WHERE {where_conditions}
+                ORDER BY name, released_at DESC NULLS LAST
+                LIMIT %s
+            """, (*word_patterns, limit))
+            return cursor.fetchall()
+
     def get_card_rules(self, card_id: str) -> List[Dict]:
         """Get all rules associated with a card."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
