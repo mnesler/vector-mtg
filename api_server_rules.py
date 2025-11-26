@@ -142,21 +142,26 @@ async def root():
 async def search_cards(
     name: Optional[str] = Query(None, description="Card name search (partial match, returns multiple)"),
     rule: Optional[str] = Query(None, description="Filter by rule name"),
-    limit: int = Query(50, ge=1, le=500)
+    limit: int = Query(50, ge=1, le=500),
+    include_nonplayable: bool = Query(False, description="Include non-playable cards (tokens, schemes, banned cards)")
 ):
     """
     Search for cards by name or rule.
 
+    By default, only returns cards legal in Standard or Commander.
+    Set include_nonplayable=true to show all cards including tokens, planes, etc.
+
     Examples:
-    - /api/cards/search?name=Lightning&limit=20  (returns all cards with "Lightning" in name)
-    - /api/cards/search?name=Birds of Paradise  (returns all cards matching the pattern)
+    - /api/cards/search?name=Lightning&limit=20  (returns playable cards with "Lightning" in name)
+    - /api/cards/search?name=Birds of Paradise  (returns playable cards matching the pattern)
     - /api/cards/search?rule=flying_keyword&limit=20
+    - /api/cards/search?name=Warrior&include_nonplayable=true  (includes token creatures)
     """
     engine = get_engine()
 
     if name:
         # Search for multiple cards matching the name pattern
-        cards = engine.search_cards_by_name(name, limit=limit)
+        cards = engine.search_cards_by_name(name, limit=limit, include_nonplayable=include_nonplayable)
 
         # For each card, get its rules
         result_cards = []
@@ -174,7 +179,7 @@ async def search_cards(
         }
 
     if rule:
-        cards = engine.find_cards_by_rule(rule, limit=limit)
+        cards = engine.find_cards_by_rule(rule, limit=limit, include_nonplayable=include_nonplayable)
 
         # Add rules to each card
         result_cards = []
@@ -215,9 +220,14 @@ async def get_card(card_id: str):
 async def get_similar_cards(
     card_id: str,
     limit: int = Query(20, ge=1, le=100),
-    rule_filter: Optional[str] = Query(None, description="Filter by rule name")
+    rule_filter: Optional[str] = Query(None, description="Filter by rule name"),
+    include_nonplayable: bool = Query(False, description="Include non-playable cards (tokens, schemes, banned cards)")
 ):
-    """Find cards similar to the given card using vector embeddings."""
+    """
+    Find cards similar to the given card using vector embeddings.
+
+    By default, only returns cards legal in Standard or Commander.
+    """
     engine = get_engine()
 
     # Verify card exists
@@ -225,7 +235,12 @@ async def get_similar_cards(
     if not card:
         raise HTTPException(status_code=404, detail=f"Card with ID '{card_id}' not found")
 
-    similar = engine.find_similar_cards(card_id, limit=limit, rule_filter=rule_filter)
+    similar = engine.find_similar_cards(
+        card_id,
+        limit=limit,
+        rule_filter=rule_filter,
+        include_nonplayable=include_nonplayable
+    )
 
     return {
         "card_id": card_id,
@@ -285,12 +300,17 @@ async def list_rules(
 @app.get("/api/rules/{rule_name}/cards", tags=["Rules"])
 async def get_cards_for_rule(
     rule_name: str,
-    limit: int = Query(50, ge=1, le=500)
+    limit: int = Query(50, ge=1, le=500),
+    include_nonplayable: bool = Query(False, description="Include non-playable cards (tokens, schemes, banned cards)")
 ):
-    """Get all cards that match a specific rule."""
+    """
+    Get all cards that match a specific rule.
+
+    By default, only returns cards legal in Standard or Commander.
+    """
     engine = get_engine()
 
-    cards = engine.find_cards_by_rule(rule_name, limit=limit)
+    cards = engine.find_cards_by_rule(rule_name, limit=limit, include_nonplayable=include_nonplayable)
 
     if not cards:
         raise HTTPException(status_code=404, detail=f"Rule '{rule_name}' not found or has no matching cards")

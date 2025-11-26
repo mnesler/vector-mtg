@@ -93,10 +93,15 @@ class MTGRuleEngine:
 
             return result
 
-    def search_cards_by_name(self, search_term: str, limit: int = 50) -> List[Dict]:
+    def search_cards_by_name(self, search_term: str, limit: int = 50, include_nonplayable: bool = False) -> List[Dict]:
         """
         Search for multiple cards by name pattern.
         Returns all cards matching the search term (deduplicated by name, most recent).
+
+        Args:
+            search_term: Card name to search for (supports partial matching)
+            limit: Maximum number of results
+            include_nonplayable: If False (default), only show Standard/Commander legal cards
         """
         with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
             # Tokenize search term
@@ -108,6 +113,9 @@ class MTGRuleEngine:
             # Build WHERE clause with ILIKE for each word
             where_conditions = " AND ".join([f"name ILIKE %s" for _ in words])
             word_patterns = [f'%{word}%' for word in words]
+
+            # Add playability filter
+            playability_filter = "" if include_nonplayable else " AND is_playable = TRUE"
 
             cursor.execute(f"""
                 SELECT DISTINCT ON (name)
@@ -124,7 +132,7 @@ class MTGRuleEngine:
                     data->'image_uris'->>'normal' as image_normal,
                     data->'image_uris'->>'large' as image_large
                 FROM cards
-                WHERE {where_conditions}
+                WHERE {where_conditions}{playability_filter}
                 ORDER BY name, released_at DESC NULLS LAST
                 LIMIT %s
             """, (*word_patterns, limit))
@@ -150,16 +158,24 @@ class MTGRuleEngine:
             """, (card_id,))
             return cursor.fetchall()
 
-    def find_cards_by_rule(self, rule_name: str, limit: int = 50) -> List[Dict]:
+    def find_cards_by_rule(self, rule_name: str, limit: int = 50, include_nonplayable: bool = False) -> List[Dict]:
         """
         Find all cards that match a specific rule.
         Returns only one printing per unique card name (most recent).
+
+        Args:
+            rule_name: Rule to filter by (e.g., 'flying_keyword')
+            limit: Maximum number of results
+            include_nonplayable: If False (default), only show Standard/Commander legal cards
 
         Example:
             find_cards_by_rule('flying_keyword')
         """
         with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute("""
+            # Add playability filter
+            playability_filter = "" if include_nonplayable else " AND c.is_playable = TRUE"
+
+            cursor.execute(f"""
                 SELECT DISTINCT ON (c.name)
                     c.id,
                     c.name,
@@ -177,26 +193,35 @@ class MTGRuleEngine:
                 FROM cards c
                 JOIN card_rules cr ON c.id = cr.card_id
                 JOIN rules r ON cr.rule_id = r.id
-                WHERE r.rule_name = %s
+                WHERE r.rule_name = %s{playability_filter}
                 ORDER BY c.name, c.released_at DESC NULLS LAST, cr.confidence DESC
                 LIMIT %s
             """, (rule_name, limit))
             return cursor.fetchall()
 
     def find_similar_cards(self, card_id: str, limit: int = 20,
-                          rule_filter: Optional[str] = None) -> List[Dict]:
+                          rule_filter: Optional[str] = None,
+                          include_nonplayable: bool = False) -> List[Dict]:
         """
         Find cards similar to the given card using vector embeddings.
         Returns only one printing per unique card name (most recent).
-        Optionally filter by a specific rule.
+
+        Args:
+            card_id: ID of card to find similar cards for
+            limit: Maximum number of results
+            rule_filter: Optional rule name to filter by
+            include_nonplayable: If False (default), only show Standard/Commander legal cards
         """
         card = self.get_card(card_id)
         if not card or not card['embedding']:
             return []
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Add playability filter
+            playability_filter = "" if include_nonplayable else " AND c.is_playable = TRUE"
+
             # Use subquery to get most recent printing per card name
-            query = """
+            query = f"""
                 WITH unique_cards AS (
                     SELECT DISTINCT ON (c.name)
                         c.id,
@@ -208,7 +233,7 @@ class MTGRuleEngine:
                         c.embedding
                     FROM cards c
                     WHERE c.id != %s
-                      AND c.embedding IS NOT NULL
+                      AND c.embedding IS NOT NULL{playability_filter}
             """
             params = [card_id]
 
