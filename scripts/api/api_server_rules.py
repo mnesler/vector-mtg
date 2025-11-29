@@ -13,7 +13,7 @@ from psycopg2.extras import RealDictCursor
 import uvicorn
 from contextlib import asynccontextmanager
 
-from rule_engine import MTGRuleEngine
+from .rule_engine import MTGRuleEngine
 
 
 # Database configuration
