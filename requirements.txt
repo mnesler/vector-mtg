@@ -13,3 +13,4 @@ numpy==1.24.3
 
 # Utilities
 tqdm==4.66.1
+pytest==8.3.4

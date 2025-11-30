@@ -12,8 +12,14 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import uvicorn
 from contextlib import asynccontextmanager
+import sys
+import os
 
-from .rule_engine import MTGRuleEngine
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from api.rule_engine import MTGRuleEngine
+from api.embedding_service import get_embedding_service
 
 
 # Database configuration
@@ -32,11 +38,15 @@ db_conn = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage database connection lifecycle."""
+    """Manage database connection and embedding service lifecycle."""
     global db_conn
     print("Starting API server...")
     db_conn = psycopg2.connect(**DB_CONFIG)
     print("✓ Database connected")
+    # Initialize embedding service (loads model into memory)
+    print("Loading embedding model...")
+    get_embedding_service()
+    print("✓ Embedding service ready")
     yield
     print("Shutting down API server...")
     if db_conn:
@@ -197,6 +207,122 @@ async def search_cards(
         }
 
     raise HTTPException(status_code=400, detail="Must provide either 'name' or 'rule' parameter")
+
+
+@app.get("/api/cards/keyword", tags=["Cards"])
+async def keyword_search(
+    query: str = Query(..., description="Keyword to search for in card names and oracle text"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of results")
+):
+    """
+    Keyword search for cards by exact or partial text match.
+    Searches in card name and oracle text.
+
+    Examples:
+    - /api/cards/keyword?query=lightning&limit=10
+    - /api/cards/keyword?query=flying
+    """
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
+
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute("""
+            SELECT
+                id,
+                name,
+                mana_cost,
+                cmc,
+                type_line,
+                oracle_text,
+                keywords
+            FROM cards
+            WHERE
+                name ILIKE %s
+                OR oracle_text ILIKE %s
+            ORDER BY
+                CASE
+                    WHEN name ILIKE %s THEN 1
+                    WHEN oracle_text ILIKE %s THEN 2
+                    ELSE 3
+                END,
+                name
+            LIMIT %s
+        """, (f'%{query}%', f'%{query}%', f'{query}%', f'{query}%', limit))
+
+        cards = cursor.fetchall()
+
+    return {
+        "query": query,
+        "search_type": "keyword",
+        "count": len(cards),
+        "cards": [dict(c) for c in cards]
+    }
+
+
+@app.get("/api/cards/semantic", tags=["Cards"])
+async def semantic_search(
+    query: str = Query(..., description="Natural language query for semantic search"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of results")
+):
+    """
+    Semantic search for cards using natural language queries and vector similarity.
+
+    Uses vector embeddings to find cards semantically similar to your query.
+    Works with natural language descriptions of card mechanics.
+
+    Examples:
+    - /api/cards/semantic?query=cards that deal damage to creatures
+    - /api/cards/semantic?query=artifact removal
+    - /api/cards/semantic?query=flying creatures
+    """
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
+
+    # Generate embedding for the query
+    embedding_service = get_embedding_service()
+    query_embedding = embedding_service.generate_embedding(query)
+
+    # Perform vector similarity search with deduplication
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute("""
+            WITH ranked_cards AS (
+                SELECT
+                    id,
+                    name,
+                    mana_cost,
+                    cmc,
+                    type_line,
+                    oracle_text,
+                    keywords,
+                    released_at,
+                    1 - (embedding <=> %s::vector) as similarity,
+                    ROW_NUMBER() OVER (PARTITION BY name ORDER BY released_at DESC NULLS LAST) as rn
+                FROM cards
+                WHERE embedding IS NOT NULL
+            )
+            SELECT
+                id,
+                name,
+                mana_cost,
+                cmc,
+                type_line,
+                oracle_text,
+                keywords,
+                similarity
+            FROM ranked_cards
+            WHERE rn = 1
+            ORDER BY similarity DESC
+            LIMIT %s
+        """, (query_embedding, limit))
+
+        cards = cursor.fetchall()
+
+    return {
+        "query": query,
+        "search_type": "semantic",
+        "count": len(cards),
+        "cards": [dict(c) for c in cards]
+    }
 
 
 @app.get("/api/cards/{card_id}", tags=["Cards"], response_model=CardWithRulesResponse)
