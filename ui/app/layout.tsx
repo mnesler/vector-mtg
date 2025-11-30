@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ThemeSwitcher from "../components/ThemeSwitcher";
 
 export const metadata: Metadata = {
   title: "MTG Rule Engine",
@@ -12,8 +13,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" data-theme="wintry">
+      <body>
+        <ThemeSwitcher />
+        {children}
+      </body>
     </html>
   );
 }
