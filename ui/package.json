@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@floating-ui/dom": "^1.7.4",
     "@skeletonlabs/skeleton": "^4.5.3",
     "@skeletonlabs/tw-plugin": "^0.4.1",
     "@tailwindcss/postcss": "^4.1.17",
