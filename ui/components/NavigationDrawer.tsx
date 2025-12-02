@@ -67,7 +67,7 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
 
           {/* Footer */}
           <div className="p-4 border-t border-surface-300-700">
-            <p className="text-sm opacity-60">MTG Vector Cube v1.0</p>
+            <p className="text-sm opacity-60">vector-mtg v1.0</p>
           </div>
         </nav>
       </aside>

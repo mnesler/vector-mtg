@@ -8,13 +8,15 @@ type SearchMode = 'keyword' | 'semantic';
 interface SearchBarProps {
   placeholder?: string;
   className?: string;
-  onSearchResults?: (results: any[]) => void;
+  onSearchResults?: (results: any[], query: string, mode: 'keyword' | 'semantic', hasMore: boolean) => void;
+  onSearchStart?: () => void;
 }
 
 export default function SearchBar({
   placeholder = "Search cards...",
   className = "",
-  onSearchResults
+  onSearchResults,
+  onSearchStart
 }: SearchBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('semantic');
@@ -29,10 +31,11 @@ export default function SearchBar({
 
   const performSearch = async (query: string, mode: SearchMode) => {
     if (!query.trim()) {
-      onSearchResults?.([]);
+      onSearchResults?.([], '', mode, false);
       return;
     }
 
+    onSearchStart?.();
     setIsSearching(true);
     try {
       const endpoint = mode === 'keyword'
@@ -46,10 +49,10 @@ export default function SearchBar({
       }
 
       const data = await response.json();
-      onSearchResults?.(data.cards || []);
+      onSearchResults?.(data.cards || [], query, mode, data.has_more || false);
     } catch (error) {
       console.error('Search error:', error);
-      onSearchResults?.([]);
+      onSearchResults?.([], query, mode, false);
     } finally {
       setIsSearching(false);
     }
@@ -62,7 +65,7 @@ export default function SearchBar({
         if (searchQuery.trim()) {
           performSearch(searchQuery, searchMode);
         } else {
-          onSearchResults?.([]);
+          onSearchResults?.([], '', searchMode, false);
           setIsSearching(false);
         }
       }, 300);
@@ -71,7 +74,7 @@ export default function SearchBar({
     } else {
       // For semantic mode, clear results when query is empty
       if (!searchQuery.trim()) {
-        onSearchResults?.([]);
+        onSearchResults?.([], '', searchMode, false);
         setIsSearching(false);
       }
     }
@@ -112,7 +115,13 @@ export default function SearchBar({
   }, [showKeywordTooltip]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
+    const value = e.target.value;
+    setSearchQuery(value);
+    
+    // Clear results when input is cleared
+    if (!value.trim()) {
+      onSearchResults?.([], '', searchMode, false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -120,7 +129,7 @@ export default function SearchBar({
       if (searchQuery.trim()) {
         performSearch(searchQuery, searchMode);
       } else {
-        onSearchResults?.([]);
+        onSearchResults?.([], '', searchMode, false);
         setIsSearching(false);
       }
     }
@@ -129,7 +138,7 @@ export default function SearchBar({
   return (
     <div className={`flex flex-col gap-3 ${className}`}>
       <div className="flex items-center justify-center gap-3">
-        <div className="relative flex-1 max-w-2xl">
+        <div className="relative flex-1">
           <input
             type="search"
             placeholder={placeholder}
