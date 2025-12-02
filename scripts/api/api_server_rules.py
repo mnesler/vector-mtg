@@ -7,19 +7,21 @@ FastAPI server exposing rule engine capabilities via HTTP endpoints.
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import uvicorn
 from contextlib import asynccontextmanager
 import sys
 import os
+import re
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from api.rule_engine import MTGRuleEngine
 from api.embedding_service import get_embedding_service
+from api.query_parser_service import get_query_parser
 
 
 # Database configuration
@@ -47,6 +49,10 @@ async def lifespan(app: FastAPI):
     print("Loading embedding model...")
     get_embedding_service()
     print("✓ Embedding service ready")
+    # Initialize query parser (loads LLM into memory)
+    print("Loading query parser LLM...")
+    get_query_parser()
+    print("✓ Query parser ready")
     yield
     print("Shutting down API server...")
     if db_conn:
@@ -212,7 +218,8 @@ async def search_cards(
 @app.get("/api/cards/keyword", tags=["Cards"])
 async def keyword_search(
     query: str = Query(..., description="Keyword to search for in card names and oracle text"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of results")
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination")
 ):
     """
     Keyword search for cards by exact or partial text match.
@@ -221,6 +228,7 @@ async def keyword_search(
     Examples:
     - /api/cards/keyword?query=lightning&limit=10
     - /api/cards/keyword?query=flying
+    - /api/cards/keyword?query=lightning&limit=10&offset=10 (pagination)
     """
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
@@ -247,7 +255,8 @@ async def keyword_search(
                 END,
                 name
             LIMIT %s
-        """, (f'%{query}%', f'%{query}%', f'{query}%', f'{query}%', limit))
+            OFFSET %s
+        """, (f'%{query}%', f'%{query}%', f'{query}%', f'{query}%', limit, offset))
 
         cards = cursor.fetchall()
 
@@ -255,14 +264,69 @@ async def keyword_search(
         "query": query,
         "search_type": "keyword",
         "count": len(cards),
+        "offset": offset,
+        "limit": limit,
+        "has_more": len(cards) == limit,
         "cards": [dict(c) for c in cards]
     }
+
+
+
+
+def parse_query_with_negations(query: str) -> Tuple[str, List[str]]:
+    """
+    Parse query to extract positive search terms and negative exclusions.
+    
+    Supports patterns:
+    - "not X", "no X", "without X", "exclude X"
+    - "with no X", "having no X"
+    - Multiple exclusions: "vampires, no landfall, without haste"
+    
+    Returns:
+        Tuple of (positive_query, list_of_exclusions)
+    
+    Examples:
+        "vampires with no black" -> ("vampires", ["black"])
+        "not vivi" -> ("", ["vivi"])
+        "not vivi but red blue wizards" -> ("red blue wizards", ["vivi"])
+        "legendary planeswalker blue, no landfall" -> ("legendary planeswalker blue", ["landfall"])
+    """
+    exclusions = []
+    
+    # Patterns to detect negations (case insensitive)
+    # Match single words or short phrases (up to 3 words) after negation keywords
+    negation_patterns = [
+        r'\b(?:with\s+)?no\s+([a-zA-Z][a-zA-Z0-9]*(?:\s+[a-zA-Z][a-zA-Z0-9]*){0,2})(?:\s+but\s+|\s*,\s*|$)',
+        r'\bwithout\s+([a-zA-Z][a-zA-Z0-9]*(?:\s+[a-zA-Z][a-zA-Z0-9]*){0,2})(?:\s+but\s+|\s*,\s*|$)',
+        r'\bnot\s+([a-zA-Z][a-zA-Z0-9]*(?:\s+[a-zA-Z][a-zA-Z0-9]*){0,2})(?:\s+but\s+|\s*,\s*|$)',
+        r'\bexclude\s+([a-zA-Z][a-zA-Z0-9]*(?:\s+[a-zA-Z][a-zA-Z0-9]*){0,2})(?:\s+but\s+|\s*,\s*|$)',
+        r'\bhaving\s+no\s+([a-zA-Z][a-zA-Z0-9]*(?:\s+[a-zA-Z][a-zA-Z0-9]*){0,2})(?:\s+but\s+|\s*,\s*|$)',
+    ]
+    
+    # Extract all exclusions
+    query_cleaned = query
+    for pattern in negation_patterns:
+        matches = list(re.finditer(pattern, query, re.IGNORECASE))
+        for match in matches:
+            exclusion = match.group(1).strip()
+            if exclusion:
+                exclusions.append(exclusion)
+            # Remove this negation phrase from query
+            query_cleaned = query_cleaned.replace(match.group(0), ' ', 1)
+    
+    # Clean up the positive query
+    positive_query = re.sub(r'\s+', ' ', query_cleaned).strip()
+    positive_query = re.sub(r',\s*,', ',', positive_query)  # Remove double commas
+    positive_query = positive_query.strip(',').strip()
+    
+    return positive_query, exclusions
 
 
 @app.get("/api/cards/semantic", tags=["Cards"])
 async def semantic_search(
     query: str = Query(..., description="Natural language query for semantic search"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of results")
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination")
 ):
     """
     Semantic search for cards using natural language queries and vector similarity.
@@ -274,17 +338,72 @@ async def semantic_search(
     - /api/cards/semantic?query=cards that deal damage to creatures
     - /api/cards/semantic?query=artifact removal
     - /api/cards/semantic?query=flying creatures
+    - /api/cards/semantic?query=counterspells&limit=10&offset=10 (pagination)
     """
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
 
-    # Generate embedding for the query
-    embedding_service = get_embedding_service()
-    query_embedding = embedding_service.generate_embedding(query)
+    # Parse query using LLM
+    parser = get_query_parser()
+    parsed = parser.parse_query(query)
+    
+    positive_query = parsed.get('positive_query', '').strip()
+    exclusions = parsed.get('exclusions', [])
+    
+    # If no positive query left, return error
+    if not positive_query and exclusions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Query only contains exclusions: {', '.join(exclusions)}. Please provide what to search for."
+        )
+    
+    # If no positive query and no exclusions, return empty
+    if not positive_query:
+        return {
+            "query": query,
+            "search_type": "semantic",
+            "count": 0,
+            "offset": offset,
+            "limit": limit,
+            "has_more": False,
+            "exclusions": exclusions,
+            "cards": []
+        }
 
-    # Perform vector similarity search with deduplication
+    # Generate embedding for the positive query
+    embedding_service = get_embedding_service()
+    query_embedding = embedding_service.generate_embedding(positive_query)
+
+    # Perform vector similarity search with deduplication and exclusions
     with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
-        cursor.execute("""
+        # Build exclusion conditions
+        # Map color names to mana symbols
+        color_to_symbol = {
+            'white': 'W',
+            'blue': 'U',
+            'black': 'B',
+            'red': 'R',
+            'green': 'G'
+        }
+
+        exclusion_conditions = []
+        exclusion_params = []
+
+        for exclusion in exclusions:
+            exclusion_lower = exclusion.lower()
+            # Check mana_cost for color symbols if exclusion is a color
+            if exclusion_lower in color_to_symbol:
+                symbol = color_to_symbol[exclusion_lower]
+                exclusion_conditions.append("(mana_cost NOT LIKE %s AND oracle_text NOT ILIKE %s AND name NOT ILIKE %s AND type_line NOT ILIKE %s)")
+                exclusion_params.extend([f'%{{{symbol}}}%', f'%{exclusion}%', f'%{exclusion}%', f'%{exclusion}%'])
+            else:
+                exclusion_conditions.append("(oracle_text NOT ILIKE %s AND name NOT ILIKE %s AND type_line NOT ILIKE %s)")
+                exclusion_params.extend([f'%{exclusion}%', f'%{exclusion}%', f'%{exclusion}%'])
+
+        # Combine exclusion conditions with AND
+        exclusion_sql = " AND ".join(exclusion_conditions) if exclusion_conditions else "TRUE"
+        
+        query_sql = f"""
             WITH ranked_cards AS (
                 SELECT
                     id,
@@ -299,6 +418,7 @@ async def semantic_search(
                     ROW_NUMBER() OVER (PARTITION BY name ORDER BY released_at DESC NULLS LAST) as rn
                 FROM cards
                 WHERE embedding IS NOT NULL
+                  AND {exclusion_sql}
             )
             SELECT
                 id,
@@ -313,14 +433,24 @@ async def semantic_search(
             WHERE rn = 1
             ORDER BY similarity DESC
             LIMIT %s
-        """, (query_embedding, limit))
-
+            OFFSET %s
+        """
+        
+        # Combine all parameters
+        all_params = [query_embedding] + exclusion_params + [limit, offset]
+        
+        cursor.execute(query_sql, all_params)
         cards = cursor.fetchall()
 
     return {
         "query": query,
+        "positive_query": positive_query,
+        "exclusions": exclusions,
         "search_type": "semantic",
         "count": len(cards),
+        "offset": offset,
+        "limit": limit,
+        "has_more": len(cards) == limit,
         "cards": [dict(c) for c in cards]
     }
 
