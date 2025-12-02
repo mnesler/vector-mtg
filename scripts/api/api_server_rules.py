@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from api.rule_engine import MTGRuleEngine
 from api.embedding_service import get_embedding_service
 from api.query_parser_service import get_query_parser
+from api.advanced_query_parser import get_advanced_parser
 
 
 # Database configuration
@@ -447,6 +448,139 @@ async def semantic_search(
         "positive_query": positive_query,
         "exclusions": exclusions,
         "search_type": "semantic",
+        "count": len(cards),
+        "offset": offset,
+        "limit": limit,
+        "has_more": len(cards) == limit,
+        "cards": [dict(c) for c in cards]
+    }
+
+
+@app.get("/api/cards/advanced", tags=["Cards"])
+async def advanced_search(
+    query: str = Query(..., description="Natural language query with complex filters"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination"),
+    include_nonplayable: bool = Query(False, description="Include non-playable cards (tokens, schemes, banned cards)")
+):
+    """
+    Advanced search with support for complex filters.
+    
+    Supports:
+    - Creature types: "zombies", "dragons", "vampires"
+    - Color filters: "blue", "not black", "only red"
+    - CMC filters: "more than 3 mana", "cmc < 4", "2 mana or less"
+    - Type filters: "creatures", "instants", "artifacts"
+    - Keyword filters: "with flying", "no haste"
+    - Rarity filters: "rare", "mythic"
+    - Power/Toughness: "power > 4", "3/3 or bigger"
+    
+    Examples:
+    - /api/cards/advanced?query=zombies but not black more than 3 mana
+    - /api/cards/advanced?query=blue dragons cmc <= 5 with flying
+    - /api/cards/advanced?query=rare creatures only red power >= 4
+    - /api/cards/advanced?query=instants 2 mana or less not blue
+    - /api/cards/advanced?query=vampires without lifelink cmc > 2
+    """
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
+    
+    # Parse query using advanced parser
+    parser = get_advanced_parser()
+    parsed = parser.parse(query)
+    
+    # Generate embedding for semantic search if we have positive terms
+    query_embedding = None
+    if parsed.positive_terms:
+        embedding_service = get_embedding_service()
+        query_embedding = embedding_service.generate_embedding(parsed.positive_terms)
+    
+    # Build SQL query with filters
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        # Get SQL WHERE clause from parsed filters
+        filter_where, filter_params = parser.to_sql_where_clause(parsed)
+        
+        # Add playability filter
+        if not include_nonplayable:
+            filter_where += " AND is_playable = TRUE"
+        
+        if query_embedding:
+            # Semantic search with filters
+            query_sql = f"""
+                WITH ranked_cards AS (
+                    SELECT
+                        id,
+                        name,
+                        mana_cost,
+                        cmc,
+                        type_line,
+                        oracle_text,
+                        keywords,
+                        colors,
+                        power,
+                        toughness,
+                        rarity,
+                        released_at,
+                        1 - (embedding <=> %s::vector) as similarity,
+                        ROW_NUMBER() OVER (PARTITION BY name ORDER BY released_at DESC NULLS LAST) as rn
+                    FROM cards
+                    WHERE embedding IS NOT NULL
+                      AND ({filter_where})
+                )
+                SELECT
+                    id,
+                    name,
+                    mana_cost,
+                    cmc,
+                    type_line,
+                    oracle_text,
+                    keywords,
+                    colors,
+                    power,
+                    toughness,
+                    rarity,
+                    similarity
+                FROM ranked_cards
+                WHERE rn = 1
+                ORDER BY similarity DESC
+                LIMIT %s
+                OFFSET %s
+            """
+            params = [query_embedding] + filter_params + [limit, offset]
+        else:
+            # Filter-only search (no semantic component)
+            query_sql = f"""
+                SELECT DISTINCT ON (name)
+                    id,
+                    name,
+                    mana_cost,
+                    cmc,
+                    type_line,
+                    oracle_text,
+                    keywords,
+                    colors,
+                    power,
+                    toughness,
+                    rarity
+                FROM cards
+                WHERE {filter_where}
+                ORDER BY name, released_at DESC NULLS LAST
+                LIMIT %s
+                OFFSET %s
+            """
+            params = filter_params + [limit, offset]
+        
+        cursor.execute(query_sql, params)
+        cards = cursor.fetchall()
+    
+    return {
+        "query": query,
+        "parsed": {
+            "positive_terms": parsed.positive_terms,
+            "exclusions": parsed.exclusions,
+            "filters": parsed.filters
+        },
+        "search_type": "advanced",
         "count": len(cards),
         "offset": offset,
         "limit": limit,
