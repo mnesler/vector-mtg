@@ -40,7 +40,7 @@ export default function SearchBar({
     try {
       const endpoint = mode === 'keyword'
         ? `/api/cards/keyword?query=${encodeURIComponent(query)}&limit=10`
-        : `/api/cards/semantic?query=${encodeURIComponent(query)}&limit=10`;
+        : `/api/cards/hybrid?query=${encodeURIComponent(query)}&limit=10&threshold=0.50`;
 
       const response = await fetch(`http://localhost:8000${endpoint}`);
 

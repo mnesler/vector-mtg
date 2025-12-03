@@ -23,6 +23,7 @@ from api.rule_engine import MTGRuleEngine
 from api.embedding_service import get_embedding_service
 from api.query_parser_service import get_query_parser
 from api.advanced_query_parser import get_advanced_parser
+from api.hybrid_search_service import get_hybrid_search_service
 
 
 # Database configuration
@@ -327,7 +328,8 @@ def parse_query_with_negations(query: str) -> Tuple[str, List[str]]:
 async def semantic_search(
     query: str = Query(..., description="Natural language query for semantic search"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
-    offset: int = Query(0, ge=0, description="Number of results to skip for pagination")
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination"),
+    threshold: float = Query(0.50, ge=0.0, le=1.0, description="Minimum similarity threshold (0.0-1.0)")
 ):
     """
     Semantic search for cards using natural language queries and vector similarity.
@@ -340,6 +342,7 @@ async def semantic_search(
     - /api/cards/semantic?query=artifact removal
     - /api/cards/semantic?query=flying creatures
     - /api/cards/semantic?query=counterspells&limit=10&offset=10 (pagination)
+    - /api/cards/semantic?query=board wipes&threshold=0.60 (higher quality results)
     """
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
@@ -432,13 +435,14 @@ async def semantic_search(
                 similarity
             FROM ranked_cards
             WHERE rn = 1
+              AND similarity >= %s
             ORDER BY similarity DESC
             LIMIT %s
             OFFSET %s
         """
         
         # Combine all parameters
-        all_params = [query_embedding] + exclusion_params + [limit, offset]
+        all_params = [query_embedding] + exclusion_params + [threshold, limit, offset]
         
         cursor.execute(query_sql, all_params)
         cards = cursor.fetchall()
@@ -448,12 +452,59 @@ async def semantic_search(
         "positive_query": positive_query,
         "exclusions": exclusions,
         "search_type": "semantic",
+        "threshold": threshold,
         "count": len(cards),
         "offset": offset,
         "limit": limit,
         "has_more": len(cards) == limit,
         "cards": [dict(c) for c in cards]
     }
+
+
+@app.get("/api/cards/hybrid", tags=["Cards"])
+async def hybrid_search(
+    query: str = Query(..., description="Query string - automatically routed to best search method"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination"),
+    threshold: float = Query(0.50, ge=0.0, le=1.0, description="Minimum similarity threshold for semantic results"),
+    auto_boost: bool = Query(True, description="Automatically boost exact/partial name matches")
+):
+    """
+    Hybrid search combining keyword, semantic, and advanced search.
+    
+    Automatically detects the best search method:
+    - Exact card names → Keyword search (e.g., "Lightning Bolt")
+    - Complex filters → Advanced search (e.g., "zombies not black cmc > 3")
+    - Natural language → Semantic search (e.g., "cards that draw cards")
+    
+    Features:
+    - Intelligent query classification
+    - Similarity threshold filtering (default: 0.50)
+    - Automatic name match boosting
+    - Deduplication by card name
+    
+    Examples:
+    - /api/cards/hybrid?query=Lightning Bolt (→ keyword search)
+    - /api/cards/hybrid?query=counterspells (→ semantic search)
+    - /api/cards/hybrid?query=zombies not black cmc > 3 (→ advanced search)
+    - /api/cards/hybrid?query=flying creatures&threshold=0.60 (higher quality)
+    """
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
+    
+    # Get hybrid search service
+    service = get_hybrid_search_service(db_conn)
+    
+    # Execute search
+    result = service.search(
+        query=query,
+        limit=limit,
+        offset=offset,
+        threshold=threshold,
+        auto_boost=auto_boost
+    )
+    
+    return result
 
 
 @app.get("/api/cards/advanced", tags=["Cards"])

@@ -44,7 +44,7 @@ export default function Home() {
     try {
       const endpoint = currentMode === 'keyword'
         ? `/api/cards/keyword?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}`
-        : `/api/cards/semantic?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}`;
+        : `/api/cards/hybrid?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}&threshold=0.50`;
 
       const response = await fetch(`http://localhost:8000${endpoint}`);
       if (!response.ok) throw new Error(`Search failed: ${response.statusText}`);
