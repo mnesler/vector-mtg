@@ -5,6 +5,8 @@ cards.json
 *.json.gz
 *.csv
 *.parquet
+data_sources/
+data_sources_comprehensive/
 
 # ============================================
 # Python
