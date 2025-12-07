@@ -7,6 +7,7 @@ cards.json
 *.parquet
 data_sources/
 data_sources_comprehensive/
+commander_spellbook_data/
 
 # ============================================
 # Python

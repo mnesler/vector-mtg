@@ -1,0 +1,34 @@
+# LLM Deck Builder Dependencies
+
+# Core ML/AI
+torch>=2.0.0
+transformers>=4.30.0
+peft>=0.4.0  # LoRA and other parameter-efficient fine-tuning
+accelerate>=0.20.0  # Distributed training support
+bitsandbytes>=0.40.0  # Quantization support
+
+# Data Processing
+datasets>=2.12.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Model Serving (for inference API)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0
+
+# Optimization
+deepspeed>=0.9.0  # Optional: for large-scale training
+xformers>=0.0.20  # Optional: memory-efficient attention
+
+# Monitoring & Logging
+wandb>=0.15.0  # Experiment tracking
+tensorboard>=2.13.0
+
+# Database (shared with other projects)
+psycopg2-binary>=2.9.0
+sqlalchemy>=2.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
