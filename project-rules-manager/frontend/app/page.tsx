@@ -27,6 +27,7 @@ interface Card {
 }
 
 interface TagStats {
+  total_playable_cards: number;
   total_cards_with_tags: number;
   high_confidence_cards: number;
   low_confidence_cards: number;
@@ -129,15 +130,29 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <DashboardCard
               title="Cards with Tags"
-              value={tagStats.total_cards_with_tags}
+              value={
+                <span>
+                  {tagStats.total_cards_with_tags}
+                  <span className="text-2xl font-normal opacity-70 ml-2">
+                    ({tagStats.total_playable_cards.toLocaleString()})
+                  </span>
+                </span>
+              }
               gradient={GRADIENTS[0]}
-              subtitle="Total cards that have been tagged"
+              subtitle="Tagged cards (total playable cards)"
             />
             <DashboardCard
               title="High Confidence"
-              value={`${tagStats.high_confidence_cards} • ${(tagStats.average_confidence * 100).toFixed(1)}%`}
+              value={
+                <span>
+                  {tagStats.high_confidence_cards}
+                  <span className="text-2xl font-normal opacity-70 ml-2">
+                    ({(tagStats.average_confidence * 100).toFixed(1)}%)
+                  </span>
+                </span>
+              }
               gradient={GRADIENTS[1]}
-              subtitle="Cards ≥70% confidence • Avg confidence"
+              subtitle="Cards ≥70% confidence (avg confidence)"
             />
             <DashboardCard
               title="Low Confidence"

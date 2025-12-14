@@ -1,10 +1,11 @@
 'use client';
 
 import { generateGradientCSS, Gradient } from './Gradients';
+import { ReactNode } from 'react';
 
 interface DashboardCardProps {
   title: string;
-  value: number | string;
+  value: number | string | ReactNode;
   gradient: Gradient;
   subtitle?: string;
 }

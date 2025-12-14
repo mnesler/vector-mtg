@@ -921,6 +921,14 @@ async def get_rule_statistics():
 async def get_tag_statistics():
     """Get statistics about card tags and confidence levels."""
     with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        # Get total playable cards
+        cursor.execute("""
+            SELECT COUNT(*) as total_playable_cards
+            FROM cards
+            WHERE is_playable = TRUE
+        """)
+        total_playable = cursor.fetchone()['total_playable_cards']
+
         # Get total cards with tags
         cursor.execute("""
             SELECT COUNT(DISTINCT card_id) as total_cards_with_tags
@@ -953,6 +961,7 @@ async def get_tag_statistics():
         avg_confidence = float(avg_conf_result['avg_confidence']) if avg_conf_result['avg_confidence'] else 0.0
 
         return {
+            "total_playable_cards": total_playable,
             "total_cards_with_tags": total_with_tags,
             "high_confidence_cards": high_confidence,
             "low_confidence_cards": low_confidence,
