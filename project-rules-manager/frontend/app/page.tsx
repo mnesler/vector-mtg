@@ -74,20 +74,54 @@ export default function Home() {
     setHasMore(false);
   };
 
+  const handleShowAllTaggedCards = async () => {
+    setIsSearching(true);
+    setSearchResults([]);
+    setCurrentQuery('');
+    setCurrentMode('semantic');
+
+    try {
+      const response = await fetch('http://localhost:8000/api/cards/with-tags?limit=100');
+      if (!response.ok) throw new Error(`Failed to fetch tagged cards: ${response.statusText}`);
+
+      const data = await response.json();
+      setSearchResults(data.cards || []);
+      setHasMore(data.has_more || false);
+    } catch (error) {
+      console.error('Error fetching tagged cards:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const loadMore = useCallback(async () => {
-    if (!hasMore || isLoadingMore || !currentQuery) return;
+    if (!hasMore || isLoadingMore) return;
 
     setIsLoadingMore(true);
     try {
-      const endpoint = currentMode === 'keyword'
-        ? `/api/cards/keyword?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}&include_tags=true&tags=true`
-        : `/api/cards/semantic?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}&include_tags=true&tags=true`;
+      let endpoint;
+      if (currentQuery) {
+        endpoint = currentMode === 'keyword'
+          ? `/api/cards/keyword?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}&include_tags=true&tags=true`
+          : `/api/cards/semantic?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}&include_tags=true&tags=true`;
+      } else {
+        // Loading more tagged cards
+        endpoint = `/api/cards/with-tags?limit=100&offset=${searchResults.length}`;
+      }
 
       const response = await fetch(`http://localhost:8000${endpoint}`);
       if (!response.ok) throw new Error(`Search failed: ${response.statusText}`);
 
       const data = await response.json();
-      setSearchResults(prev => [...prev, ...(data.cards || [])]);
+      const newCards = data.cards || [];
+      
+      // Deduplicate by card ID to prevent duplicate keys
+      setSearchResults(prev => {
+        const existingIds = new Set(prev.map(card => card.id));
+        const uniqueNewCards = newCards.filter((card: Card) => !existingIds.has(card.id));
+        return [...prev, ...uniqueNewCards];
+      });
+      
       setHasMore(data.has_more || false);
     } catch (error) {
       console.error('Load more error:', error);
@@ -139,7 +173,8 @@ export default function Home() {
                 </span>
               }
               gradient={GRADIENTS[0]}
-              subtitle="Tagged cards (total playable cards)"
+              subtitle="Tagged cards (total playable cards) • Click to view"
+              onClick={handleShowAllTaggedCards}
             />
             <DashboardCard
               title="High Confidence"

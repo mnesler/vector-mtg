@@ -710,6 +710,69 @@ async def advanced_search(
     }
 
 
+@app.get("/api/cards/with-tags", tags=["Cards"])
+async def get_cards_with_tags(
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination")
+):
+    """
+    Get all cards that have tags.
+
+    Examples:
+    - /api/cards/with-tags?limit=50
+    - /api/cards/with-tags?limit=100&offset=100
+    """
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute("""
+            SELECT
+                c.id,
+                c.name,
+                c.mana_cost,
+                c.cmc,
+                c.type_line,
+                c.oracle_text,
+                c.keywords,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'id', t.id,
+                            'name', t.name,
+                            'display_name', t.display_name,
+                            'category', tc.display_name,
+                            'confidence', ct.confidence
+                        ) ORDER BY ct.confidence DESC
+                    ) FILTER (WHERE t.id IS NOT NULL),
+                    '[]'::json
+                ) as tags
+            FROM cards c
+            INNER JOIN card_tags ct ON c.id = ct.card_id
+            LEFT JOIN tags t ON ct.tag_id = t.id
+            LEFT JOIN tag_categories tc ON t.category_id = tc.id
+            GROUP BY c.id, c.name, c.mana_cost, c.cmc, c.type_line, c.oracle_text, c.keywords
+            ORDER BY c.name
+            LIMIT %s
+            OFFSET %s
+        """, (limit, offset))
+
+        cards = cursor.fetchall()
+
+        # Get total count for pagination
+        cursor.execute("""
+            SELECT COUNT(DISTINCT card_id) as total
+            FROM card_tags
+        """)
+        total_count = cursor.fetchone()['total']
+
+    return {
+        "count": len(cards),
+        "total": total_count,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + len(cards) < total_count,
+        "cards": [dict(c) for c in cards]
+    }
+
+
 @app.get("/api/cards/{card_id}", tags=["Cards"], response_model=CardWithRulesResponse)
 async def get_card(card_id: str):
     """Get a card by ID with all its matched rules."""

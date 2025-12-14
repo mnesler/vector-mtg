@@ -8,6 +8,7 @@ interface DashboardCardProps {
   value: number | string | ReactNode;
   gradient: Gradient;
   subtitle?: string;
+  onClick?: () => void;
 }
 
 // Calculate if we need light or dark text based on gradient colors
@@ -21,7 +22,7 @@ function shouldUseLightText(colors: string[]): boolean {
   return luminance < 0.6;
 }
 
-export default function DashboardCard({ title, value, gradient, subtitle }: DashboardCardProps) {
+export default function DashboardCard({ title, value, gradient, subtitle, onClick }: DashboardCardProps) {
   const gradientCSS = generateGradientCSS(gradient.colors);
   const textColor = shouldUseLightText(gradient.colors) ? '#ffffff' : '#000000';
 
@@ -30,11 +31,12 @@ export default function DashboardCard({ title, value, gradient, subtitle }: Dash
 
   return (
     <div
-      className="rounded-lg p-6 shadow-lg transition-transform hover:scale-105"
+      className={`rounded-lg p-6 shadow-lg transition-transform hover:scale-105 ${onClick ? 'cursor-pointer hover:shadow-2xl' : ''}`}
       style={{
         background: gradientCSS,
         color: textColor,
       }}
+      onClick={onClick}
     >
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-medium opacity-90">{title}</h3>
