@@ -1,9 +1,22 @@
 import { render, screen } from '@testing-library/react'
-import RootLayout, { metadata } from './layout'
+import RootLayout from './layout'
+
+// Mock child components to avoid rendering issues
+jest.mock('../components/AppBar', () => {
+  return function MockAppBar({ onMenuClick }: any) {
+    return <div data-testid="mock-appbar">AppBar</div>
+  }
+})
+
+jest.mock('../components/NavigationDrawer', () => {
+  return function MockNavigationDrawer({ isOpen, onClose }: any) {
+    return <div data-testid="mock-drawer">NavigationDrawer</div>
+  }
+})
 
 describe('RootLayout', () => {
   it('renders children correctly', () => {
-    render(
+    const { container } = render(
       <RootLayout>
         <div data-testid="test-child">Test Content</div>
       </RootLayout>
@@ -13,11 +26,23 @@ describe('RootLayout', () => {
     expect(screen.getByText('Test Content')).toBeInTheDocument()
   })
 
-  it('has correct metadata title', () => {
-    expect(metadata.title).toBe('MTG Rule Engine')
+  it('renders AppBar component', () => {
+    render(
+      <RootLayout>
+        <div>Test</div>
+      </RootLayout>
+    )
+
+    expect(screen.getByTestId('mock-appbar')).toBeInTheDocument()
   })
 
-  it('has correct metadata description', () => {
-    expect(metadata.description).toBe('Vector-powered Magic: The Gathering rule engine and card explorer')
+  it('renders NavigationDrawer component', () => {
+    render(
+      <RootLayout>
+        <div>Test</div>
+      </RootLayout>
+    )
+
+    expect(screen.getByTestId('mock-drawer')).toBeInTheDocument()
   })
 })

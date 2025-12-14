@@ -1,0 +1,120 @@
+[
+  {
+    "card_id": "f5733f13-49fd-4016-bbdf-2a2d76b40fbf",
+    "card_name": "Sol Ring",
+    "type_line": "Artifact",
+    "oracle_text": "{T}: Add {C}{C}.",
+    "tags": [
+      {
+        "tag": "artifact",
+        "confidence": 1.0
+      },
+      {
+        "tag": "generates_mana",
+        "confidence": 1.0
+      },
+      {
+        "tag": "generates_colorless_mana",
+        "confidence": 1.0
+      },
+      {
+        "tag": "taps_permanents",
+        "confidence": 1.0
+      }
+    ],
+    "extraction_successful": true,
+    "timestamp": "2025-12-14T14:58:40.283685"
+  },
+  {
+    "card_id": "001f88e7-1ea0-43df-b519-551daf5239bd",
+    "card_name": "Lightning Bolt",
+    "type_line": "Instant",
+    "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+    "tags": [
+      {
+        "tag": "instant",
+        "confidence": 1.0
+      },
+      {
+        "tag": "deals_damage",
+        "confidence": 1.0
+      }
+    ],
+    "extraction_successful": true,
+    "timestamp": "2025-12-14T14:58:41.792960"
+  },
+  {
+    "card_id": "00622151-6852-43d3-b825-02b4a2c0cbd5",
+    "card_name": "Counterspell",
+    "type_line": "Instant",
+    "oracle_text": "Counter target spell.",
+    "tags": [
+      {
+        "tag": "instant",
+        "confidence": 1.0
+      },
+      {
+        "tag": "counters_spells",
+        "confidence": 1.0
+      }
+    ],
+    "extraction_successful": true,
+    "timestamp": "2025-12-14T14:58:43.424733"
+  },
+  {
+    "card_id": "0003aa31-d42e-4972-9fb9-086aefe29a2c",
+    "card_name": "Birds of Paradise",
+    "type_line": "Creature \u2014 Bird",
+    "oracle_text": "Flying\n{T}: Add one mana of any color.",
+    "tags": [
+      {
+        "tag": "creature",
+        "confidence": 1.0
+      },
+      {
+        "tag": "generates_mana",
+        "confidence": 1.0
+      },
+      {
+        "tag": "taps_permanents",
+        "confidence": 1.0
+      }
+    ],
+    "extraction_successful": true,
+    "timestamp": "2025-12-14T14:58:45.191027"
+  },
+  {
+    "card_id": "035a1bed-bf06-4267-8f02-6a82b0d2408c",
+    "card_name": "Thassa's Oracle",
+    "type_line": "Creature \u2014 Merfolk Wizard",
+    "oracle_text": "When this creature enters, look at the top X cards of your library, where X is your devotion to blue. Put up to one of them on top of your library and the rest on the bottom of your library in a random order. If X is greater than or equal to the number of cards in your library, you win the game. (Each {U} in the mana costs of permanents you control counts toward your devotion to blue.)",
+    "tags": [
+      {
+        "tag": "creature",
+        "confidence": 1.0
+      },
+      {
+        "tag": "triggers_on_etb",
+        "confidence": 1.0
+      },
+      {
+        "tag": "searches_library",
+        "confidence": 0.95
+      },
+      {
+        "tag": "wins_with_condition",
+        "confidence": 1.0
+      },
+      {
+        "tag": "wins_with_empty_library",
+        "confidence": 0.95
+      },
+      {
+        "tag": "alternate_win_con",
+        "confidence": 0.95
+      }
+    ],
+    "extraction_successful": true,
+    "timestamp": "2025-12-14T14:58:49.863310"
+  }
+]

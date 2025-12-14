@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     print("✓ Database connected")
     # Initialize embedding service (loads model into memory)
     print("Loading embedding model...")
-    get_embedding_service()
+    get_embedding_service(model_name='all-mpnet-base-v2')
     print("✓ Embedding service ready")
     # Initialize query parser (loads LLM into memory)
     print("Loading query parser LLM...")

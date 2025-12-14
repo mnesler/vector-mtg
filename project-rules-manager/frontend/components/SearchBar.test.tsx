@@ -28,50 +28,43 @@ describe('SearchBar Component', () => {
     expect(input).toBeInTheDocument()
   })
 
-  it('renders mode toggle button', () => {
+  it('renders semantic search button', () => {
     render(<SearchBar />)
-    const button = screen.getByRole('button', { name: /Switch to/i })
+    const button = screen.getByRole('button', { name: /Semantic search/i })
     expect(button).toBeInTheDocument()
   })
 
-  it('starts in keyword mode', () => {
+  it('renders keyword search button', () => {
     render(<SearchBar />)
-    const button = screen.getByRole('button')
-    expect(button).toHaveTextContent('Keyword')
+    const button = screen.getByRole('button', { name: /Keyword search/i })
+    expect(button).toBeInTheDocument()
   })
 
-  it('toggles to semantic mode when button clicked', () => {
+  it('starts in semantic mode', () => {
     render(<SearchBar />)
-    const button = screen.getByRole('button')
-
-    fireEvent.click(button)
-
-    expect(button).toHaveTextContent('Semantic')
+    const semanticBtn = screen.getByRole('button', { name: /Semantic search/i })
+    expect(semanticBtn).toHaveClass('variant-filled-primary')
   })
 
-  it('toggles back to keyword mode', () => {
+  it('switches to keyword mode when keyword button clicked', () => {
     render(<SearchBar />)
-    const button = screen.getByRole('button')
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
 
-    fireEvent.click(button)
-    expect(button).toHaveTextContent('Semantic')
+    fireEvent.click(keywordBtn)
 
-    fireEvent.click(button)
-    expect(button).toHaveTextContent('Keyword')
+    expect(keywordBtn).toHaveClass('variant-filled-primary')
   })
 
-  it('displays keyword mode description', () => {
+  it('switches back to semantic mode when semantic button clicked', () => {
     render(<SearchBar />)
-    expect(screen.getByText(/Exact text matching/i)).toBeInTheDocument()
-  })
+    const semanticBtn = screen.getByRole('button', { name: /Semantic search/i })
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
 
-  it('displays semantic mode description after toggle', () => {
-    render(<SearchBar />)
-    const button = screen.getByRole('button')
+    fireEvent.click(keywordBtn)
+    expect(keywordBtn).toHaveClass('variant-filled-primary')
 
-    fireEvent.click(button)
-
-    expect(screen.getByText(/Natural language search/i)).toBeInTheDocument()
+    fireEvent.click(semanticBtn)
+    expect(semanticBtn).toHaveClass('variant-filled-primary')
   })
 
   it('allows typing in search input', async () => {
@@ -100,8 +93,12 @@ describe('SearchBar Component', () => {
     const onSearchResults = jest.fn()
     const user = userEvent.setup({ delay: null })
     render(<SearchBar onSearchResults={onSearchResults} />)
-    const input = screen.getByRole('searchbox')
 
+    // Switch to keyword mode
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
+
+    const input = screen.getByRole('searchbox')
     await user.type(input, 'lightning')
     jest.advanceTimersByTime(300) // Trigger debounce
 
@@ -129,14 +126,9 @@ describe('SearchBar Component', () => {
     const user = userEvent.setup({ delay: null })
     render(<SearchBar onSearchResults={onSearchResults} />)
 
-    // Toggle to semantic mode
-    const button = screen.getByRole('button')
-    fireEvent.click(button)
-
-    // Type query
+    // Already in semantic mode by default
     const input = screen.getByRole('searchbox')
-    await user.type(input, 'red damage')
-    jest.advanceTimersByTime(300)
+    await user.type(input, 'red damage{Enter}')
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -145,7 +137,7 @@ describe('SearchBar Component', () => {
     })
   })
 
-  it('debounces search requests', async () => {
+  it('debounces search requests in keyword mode', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ query: '', search_type: 'keyword', count: 0, cards: [] })
@@ -153,8 +145,12 @@ describe('SearchBar Component', () => {
 
     const user = userEvent.setup({ delay: null })
     render(<SearchBar />)
-    const input = screen.getByRole('searchbox')
 
+    // Switch to keyword mode for auto-search
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
+
+    const input = screen.getByRole('searchbox')
     await user.type(input, 'abc')
 
     // Should not call fetch yet
@@ -188,13 +184,17 @@ describe('SearchBar Component', () => {
     const onSearchResults = jest.fn()
     const user = userEvent.setup({ delay: null })
     render(<SearchBar onSearchResults={onSearchResults} />)
-    const input = screen.getByRole('searchbox')
 
+    // Switch to keyword mode
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
+
+    const input = screen.getByRole('searchbox')
     await user.type(input, 'lightning')
     jest.advanceTimersByTime(300)
 
     await waitFor(() => {
-      expect(onSearchResults).toHaveBeenCalledWith(mockCards)
+      expect(onSearchResults).toHaveBeenCalledWith(mockCards, 'lightning', 'keyword', false)
     })
   })
 
@@ -205,13 +205,10 @@ describe('SearchBar Component', () => {
     const input = screen.getByRole('searchbox')
 
     await user.type(input, 'test')
-    jest.advanceTimersByTime(300)
-
     await user.clear(input)
-    jest.advanceTimersByTime(300)
 
     await waitFor(() => {
-      expect(onSearchResults).toHaveBeenCalledWith([])
+      expect(onSearchResults).toHaveBeenCalledWith([], '', 'semantic', false)
     })
   })
 
@@ -222,13 +219,17 @@ describe('SearchBar Component', () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
     const user = userEvent.setup({ delay: null })
     render(<SearchBar onSearchResults={onSearchResults} />)
-    const input = screen.getByRole('searchbox')
 
+    // Switch to keyword mode for auto-search
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
+
+    const input = screen.getByRole('searchbox')
     await user.type(input, 'test')
     jest.advanceTimersByTime(300)
 
     await waitFor(() => {
-      expect(onSearchResults).toHaveBeenCalledWith([])
+      expect(onSearchResults).toHaveBeenCalledWith([], 'test', 'keyword', false)
       expect(consoleErrorSpy).toHaveBeenCalled()
     })
 
@@ -245,13 +246,17 @@ describe('SearchBar Component', () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
     const user = userEvent.setup({ delay: null })
     render(<SearchBar onSearchResults={onSearchResults} />)
-    const input = screen.getByRole('searchbox')
 
+    // Switch to keyword mode for auto-search
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
+
+    const input = screen.getByRole('searchbox')
     await user.type(input, 'test')
     jest.advanceTimersByTime(300)
 
     await waitFor(() => {
-      expect(onSearchResults).toHaveBeenCalledWith([])
+      expect(onSearchResults).toHaveBeenCalledWith([], 'test', 'keyword', false)
     })
 
     consoleErrorSpy.mockRestore()
@@ -274,8 +279,12 @@ describe('SearchBar Component', () => {
 
     const user = userEvent.setup({ delay: null })
     render(<SearchBar />)
-    const input = screen.getByRole('searchbox') as HTMLInputElement
 
+    // Switch to keyword mode for auto-search
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
+
+    const input = screen.getByRole('searchbox') as HTMLInputElement
     await user.type(input, 'test')
     jest.advanceTimersByTime(300)
 
@@ -294,8 +303,12 @@ describe('SearchBar Component', () => {
 
     const user = userEvent.setup({ delay: null })
     render(<SearchBar />)
-    const input = screen.getByRole('searchbox') as HTMLInputElement
 
+    // Switch to keyword mode for auto-search
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
+
+    const input = screen.getByRole('searchbox') as HTMLInputElement
     await user.type(input, 'test')
     jest.advanceTimersByTime(300)
 
@@ -314,7 +327,7 @@ describe('SearchBar Component', () => {
     })
   })
 
-  it('re-searches when mode is toggled', async () => {
+  it('auto-searches in keyword mode but not in semantic mode', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ query: '', search_type: 'keyword', count: 0, cards: [] })
@@ -322,26 +335,24 @@ describe('SearchBar Component', () => {
 
     const user = userEvent.setup({ delay: null })
     render(<SearchBar />)
-    const input = screen.getByRole('searchbox')
-    const button = screen.getByRole('button')
 
-    // Type a query
+    // Start in semantic mode - no auto-search
+    const input = screen.getByRole('searchbox')
     await user.type(input, 'test')
     jest.advanceTimersByTime(300)
 
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(1)
-    })
+    // Should not auto-search in semantic mode
+    expect(global.fetch).not.toHaveBeenCalled()
 
-    // Toggle mode
-    fireEvent.click(button)
+    // Switch to keyword mode
+    const keywordBtn = screen.getByRole('button', { name: /Keyword search/i })
+    fireEvent.click(keywordBtn)
     jest.advanceTimersByTime(300)
 
     await waitFor(() => {
-      // Should trigger a new search with semantic endpoint
-      expect(global.fetch).toHaveBeenCalledTimes(2)
-      expect(global.fetch).toHaveBeenLastCalledWith(
-        expect.stringContaining('/api/cards/semantic')
+      // Should auto-search in keyword mode
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/cards/keyword')
       )
     })
   })

@@ -1,57 +1,45 @@
 import { render, screen } from '@testing-library/react'
 import Home from './page'
 
+// Mock IntersectionObserver
+global.IntersectionObserver = class IntersectionObserver {
+  constructor() {}
+  disconnect() {}
+  observe() {}
+  takeRecords() {
+    return []
+  }
+  unobserve() {}
+} as any
+
 describe('Home Page', () => {
-  it('renders the main heading', () => {
+  it('renders the search bar', () => {
     render(<Home />)
-    const heading = screen.getByRole('heading', { name: /MTG Rule Engine/i })
-    expect(heading).toBeInTheDocument()
+    const searchInput = screen.getByRole('searchbox', { name: /Search cards/i })
+    expect(searchInput).toBeInTheDocument()
   })
 
-  it('renders all three navigation cards', () => {
+  it('renders the results table', () => {
     render(<Home />)
-    expect(screen.getByText('Card Explorer')).toBeInTheDocument()
-    expect(screen.getByText('Rules Browser')).toBeInTheDocument()
-    expect(screen.getByText('Deck Analyzer')).toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
   })
 
-  it('renders Card Explorer link with correct href', () => {
+  it('renders table headers', () => {
     render(<Home />)
-    const cardExplorerLink = screen.getByRole('link', { name: /Card Explorer/i })
-    expect(cardExplorerLink).toHaveAttribute('href', '/cards')
+    expect(screen.getByText('Name')).toBeInTheDocument()
+    expect(screen.getByText('Type')).toBeInTheDocument()
+    expect(screen.getByText('Cost')).toBeInTheDocument()
+    expect(screen.getByText('Text')).toBeInTheDocument()
   })
 
-  it('renders Rules Browser link with correct href', () => {
+  it('shows placeholder message when no results', () => {
     render(<Home />)
-    const rulesBrowserLink = screen.getByRole('link', { name: /Rules Browser/i })
-    expect(rulesBrowserLink).toHaveAttribute('href', '/rules')
+    expect(screen.getByText(/Use the search bar, Max/i)).toBeInTheDocument()
   })
 
-  it('renders Deck Analyzer link with correct href', () => {
+  it('renders semantic and keyword search buttons', () => {
     render(<Home />)
-    const deckAnalyzerLink = screen.getByRole('link', { name: /Deck Analyzer/i })
-    expect(deckAnalyzerLink).toHaveAttribute('href', '/deck')
-  })
-
-  it('renders the features section', () => {
-    render(<Home />)
-    const featuresHeading = screen.getByRole('heading', { name: /Features/i })
-    expect(featuresHeading).toBeInTheDocument()
-  })
-
-  it('displays all feature items', () => {
-    render(<Home />)
-    expect(screen.getByText(/Vector-powered semantic search/i)).toBeInTheDocument()
-    expect(screen.getByText(/Intelligent rule extraction/i)).toBeInTheDocument()
-    expect(screen.getByText(/Latest printing focus/i)).toBeInTheDocument()
-    expect(screen.getByText(/Card image optimization/i)).toBeInTheDocument()
-    expect(screen.getByText(/Real-time API integration/i)).toBeInTheDocument()
-  })
-
-  it('renders card descriptions', () => {
-    render(<Home />)
-    expect(screen.getByText(/Search and browse Magic: The Gathering cards/i)).toBeInTheDocument()
-    expect(screen.getByText(/Explore MTG rules and find cards/i)).toBeInTheDocument()
-    expect(screen.getByText(/Analyze deck compositions/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Semantic search/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Keyword search/i })).toBeInTheDocument()
   })
 })
