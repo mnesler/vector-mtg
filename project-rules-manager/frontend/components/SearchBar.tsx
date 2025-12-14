@@ -39,8 +39,8 @@ export default function SearchBar({
     setIsSearching(true);
     try {
       const endpoint = mode === 'keyword'
-        ? `/api/cards/keyword?query=${encodeURIComponent(query)}&limit=10`
-        : `/api/cards/semantic?query=${encodeURIComponent(query)}&limit=10`;
+        ? `/api/cards/keyword?query=${encodeURIComponent(query)}&limit=10&include_tags=true&tags=true`
+        : `/api/cards/semantic?query=${encodeURIComponent(query)}&limit=10&include_tags=true&tags=true`;
 
       const response = await fetch(`http://localhost:8000${endpoint}`);
 

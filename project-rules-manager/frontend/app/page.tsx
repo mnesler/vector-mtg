@@ -1,7 +1,18 @@
 'use client';
 
 import SearchBar from "../components/SearchBar";
+import Tag from "../components/Tag";
+import DashboardCard from "../components/DashboardCard";
+import { GRADIENTS } from "../components/Gradients";
 import { useState, useEffect, useRef, useCallback } from "react";
+
+interface TagData {
+  id: number;
+  name: string;
+  display_name?: string;
+  category?: string;
+  confidence?: number;
+}
 
 interface Card {
   id: string;
@@ -12,6 +23,14 @@ interface Card {
   oracle_text: string;
   keywords: string[];
   similarity?: number;
+  tags?: TagData[];
+}
+
+interface TagStats {
+  total_cards_with_tags: number;
+  high_confidence_cards: number;
+  low_confidence_cards: number;
+  average_confidence: number;
 }
 
 export default function Home() {
@@ -21,7 +40,24 @@ export default function Home() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentQuery, setCurrentQuery] = useState('');
   const [currentMode, setCurrentMode] = useState<'keyword' | 'semantic'>('semantic');
+  const [tagStats, setTagStats] = useState<TagStats | null>(null);
   const observerTarget = useRef<HTMLTableRowElement>(null);
+
+  // Fetch tag statistics on mount
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/stats/tags');
+        if (response.ok) {
+          const data = await response.json();
+          setTagStats(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch tag statistics:', error);
+      }
+    };
+    fetchStats();
+  }, []);
 
   const handleSearchResults = (results: Card[], query: string, mode: 'keyword' | 'semantic', hasMore: boolean) => {
     setSearchResults(results);
@@ -43,8 +79,8 @@ export default function Home() {
     setIsLoadingMore(true);
     try {
       const endpoint = currentMode === 'keyword'
-        ? `/api/cards/keyword?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}`
-        : `/api/cards/semantic?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}`;
+        ? `/api/cards/keyword?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}&include_tags=true&tags=true`
+        : `/api/cards/semantic?query=${encodeURIComponent(currentQuery)}&limit=10&offset=${searchResults.length}&include_tags=true&tags=true`;
 
       const response = await fetch(`http://localhost:8000${endpoint}`);
       if (!response.ok) throw new Error(`Search failed: ${response.statusText}`);
@@ -82,11 +118,35 @@ export default function Home() {
 
       <div className="w-full">
         {/* Search Bar */}
-        <SearchBar 
-          className="mb-8" 
+        <SearchBar
+          className="mb-8"
           onSearchResults={handleSearchResults}
           onSearchStart={handleSearchStart}
         />
+
+        {/* Dashboard Cards */}
+        {tagStats && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <DashboardCard
+              title="Cards with Tags"
+              value={tagStats.total_cards_with_tags}
+              gradient={GRADIENTS[0]}
+              subtitle="Total cards that have been tagged"
+            />
+            <DashboardCard
+              title="High Confidence"
+              value={`${tagStats.high_confidence_cards} • ${(tagStats.average_confidence * 100).toFixed(1)}%`}
+              gradient={GRADIENTS[1]}
+              subtitle="Cards ≥70% confidence • Avg confidence"
+            />
+            <DashboardCard
+              title="Low Confidence"
+              value={tagStats.low_confidence_cards}
+              gradient={GRADIENTS[2]}
+              subtitle="Cards with <70% confidence tags"
+            />
+          </div>
+        )}
 
         {/* Results Table - Always Visible */}
         <div className="card bg-surface-100-900 shadow-xl">
@@ -95,6 +155,7 @@ export default function Home() {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Tags</th>
                   <th>Type</th>
                   <th>Cost</th>
                   <th>Text</th>
@@ -104,7 +165,7 @@ export default function Home() {
               <tbody>
                 {isSearching ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-12">
+                    <td colSpan={6} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full"></div>
                         <p className="text-lg opacity-60">Searching...</p>
@@ -113,18 +174,37 @@ export default function Home() {
                   </tr>
                 ) : searchResults.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-12">
+                    <td colSpan={6} className="text-center py-12">
                       <p className="text-lg opacity-60">Use the search bar, Max</p>
                     </td>
                   </tr>
                 ) : (
                   searchResults.map((card, index) => (
-                    <tr 
-                      key={card.id} 
+                    <tr
+                      key={card.id}
                       className={`animate-fade-in ${index % 2 === 0 ? 'bg-surface-50-950/50' : ''}`}
                       ref={index === searchResults.length - 1 ? observerTarget : null}
                     >
                       <td className="font-semibold">{card.name}</td>
+                      <td className="text-sm">
+                        <div className="flex flex-wrap gap-1">
+                          {card.tags && card.tags.length > 0 ? (
+                            card.tags.slice(0, 5).map((tag) => (
+                              <Tag
+                                key={tag.id}
+                                name={tag.name}
+                                displayName={tag.display_name}
+                                confidence={tag.confidence}
+                              />
+                            ))
+                          ) : (
+                            <span className="opacity-50 text-xs">No tags</span>
+                          )}
+                          {card.tags && card.tags.length > 5 && (
+                            <span className="opacity-50 text-xs">+{card.tags.length - 5}</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="text-sm opacity-80">{card.type_line}</td>
                       <td className="font-mono text-sm">{card.mana_cost || '—'}</td>
                       <td className="text-sm opacity-80 max-w-md">
@@ -142,7 +222,7 @@ export default function Home() {
                 )}
                 {isLoadingMore && (
                   <tr>
-                    <td colSpan={5} className="text-center py-6">
+                    <td colSpan={6} className="text-center py-6">
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin h-6 w-6 border-2 border-primary-500 border-t-transparent rounded-full"></div>
                         <p className="text-sm opacity-60">Loading more...</p>

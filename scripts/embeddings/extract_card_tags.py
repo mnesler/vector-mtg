@@ -48,6 +48,12 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
+try:
+    import ollama
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -81,8 +87,9 @@ class CardTagExtractor:
             llm_model: Model to use. If None, auto-selects based on provider:
                        - Claude: "claude-3-5-haiku-20241022" (fast, cheap)
                        - OpenAI: "gpt-4o-mini"
-            provider: "anthropic" or "openai". If None, auto-detects from env vars
-            api_key: API key (defaults to ANTHROPIC_API_KEY or OPENAI_API_KEY)
+                       - Ollama: "qwen2.5:7b-instruct-q4_K_M" (local, free)
+            provider: "anthropic", "openai", or "ollama". If None, auto-detects from env vars
+            api_key: API key (defaults to ANTHROPIC_API_KEY or OPENAI_API_KEY). Not needed for Ollama.
             db_connection_string: PostgreSQL connection string
         """
         # Auto-detect provider if not specified
@@ -92,9 +99,8 @@ class CardTagExtractor:
             elif os.getenv('OPENAI_API_KEY'):
                 provider = 'openai'
             else:
-                raise ValueError(
-                    "No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file"
-                )
+                # Default to ollama if no API keys found
+                provider = 'ollama'
 
         self.provider = provider.lower()
 
@@ -104,6 +110,8 @@ class CardTagExtractor:
                 llm_model = "claude-3-5-haiku-20241022"  # Fast and cheap
             elif self.provider == 'openai':
                 llm_model = "gpt-4o-mini"
+            elif self.provider == 'ollama':
+                llm_model = "qwen2.5:7b-instruct-q4_K_M"  # Local, free
 
         self.llm_model = llm_model
 
@@ -116,8 +124,12 @@ class CardTagExtractor:
             if not OPENAI_AVAILABLE:
                 raise ImportError("openai package not installed. Run: pip install openai")
             self.client = OpenAI(api_key=api_key or os.getenv('OPENAI_API_KEY'))
+        elif self.provider == 'ollama':
+            if not OLLAMA_AVAILABLE:
+                raise ImportError("ollama package not installed. Run: pip install ollama")
+            self.client = None  # Ollama uses module-level functions
         else:
-            raise ValueError(f"Unknown provider: {provider}. Use 'anthropic' or 'openai'")
+            raise ValueError(f"Unknown provider: {provider}. Use 'anthropic', 'openai', or 'ollama'")
 
         self.db_conn_string = db_connection_string or self._get_default_db_string()
         self.available_tags = []
@@ -232,6 +244,32 @@ class CardTagExtractor:
                         max_tokens=500
                     )
                     content = response.choices[0].message.content.strip()
+
+                elif self.provider == 'ollama':
+                    if not OLLAMA_AVAILABLE:
+                        raise RuntimeError("Ollama package not installed. Install with: pip install ollama")
+                    
+                    response = ollama.chat(
+                        model=self.llm_model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are an MTG rules expert that extracts functional tags from cards. Return only valid JSON."
+                            },
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        options={
+                            "temperature": 0.1,
+                            "num_predict": 500
+                        }
+                    )
+                    content = response['message']['content'].strip()
+
+                else:
+                    raise ValueError(f"Unsupported provider: {self.provider}")
 
                 # Extract JSON from markdown code blocks if present
                 if content.startswith("```json"):

@@ -107,6 +107,14 @@ class SimilarCardResponse(CardResponse):
     similarity: float
 
 
+class TagResponse(BaseModel):
+    id: int
+    name: str
+    display_name: Optional[str]
+    category: Optional[str]
+    confidence: Optional[float]
+
+
 class DeckAnalysisRequest(BaseModel):
     cards: List[str] = Field(..., description="List of card names")
 
@@ -220,7 +228,9 @@ async def search_cards(
 async def keyword_search(
     query: str = Query(..., description="Keyword to search for in card names and oracle text"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
-    offset: int = Query(0, ge=0, description="Number of results to skip for pagination")
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination"),
+    include_tags: bool = Query(True, description="Include tags for each card"),
+    tags: bool = Query(True, description="If true, only return cards that have tags")
 ):
     """
     Keyword search for cards by exact or partial text match.
@@ -230,34 +240,83 @@ async def keyword_search(
     - /api/cards/keyword?query=lightning&limit=10
     - /api/cards/keyword?query=flying
     - /api/cards/keyword?query=lightning&limit=10&offset=10 (pagination)
+    - /api/cards/keyword?query=lightning&include_tags=true
+    - /api/cards/keyword?query=lightning&tags=false (include cards without tags)
     """
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
 
     with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
-        cursor.execute("""
-            SELECT
-                id,
-                name,
-                mana_cost,
-                cmc,
-                type_line,
-                oracle_text,
-                keywords
-            FROM cards
-            WHERE
-                name ILIKE %s
-                OR oracle_text ILIKE %s
-            ORDER BY
-                CASE
-                    WHEN name ILIKE %s THEN 1
-                    WHEN oracle_text ILIKE %s THEN 2
-                    ELSE 3
-                END,
-                name
-            LIMIT %s
-            OFFSET %s
-        """, (f'%{query}%', f'%{query}%', f'{query}%', f'{query}%', limit, offset))
+        if include_tags:
+            # Build the tags filter condition
+            tags_filter = "HAVING COUNT(t.id) > 0" if tags else ""
+
+            cursor.execute(f"""
+                SELECT
+                    c.id,
+                    c.name,
+                    c.mana_cost,
+                    c.cmc,
+                    c.type_line,
+                    c.oracle_text,
+                    c.keywords,
+                    COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'id', t.id,
+                                'name', t.name,
+                                'display_name', t.display_name,
+                                'category', tc.display_name,
+                                'confidence', ct.confidence
+                            ) ORDER BY ct.confidence DESC
+                        ) FILTER (WHERE t.id IS NOT NULL),
+                        '[]'::json
+                    ) as tags
+                FROM cards c
+                LEFT JOIN card_tags ct ON c.id = ct.card_id
+                LEFT JOIN tags t ON ct.tag_id = t.id
+                LEFT JOIN tag_categories tc ON t.category_id = tc.id
+                WHERE
+                    (c.name ILIKE %s OR c.oracle_text ILIKE %s)
+                GROUP BY c.id, c.name, c.mana_cost, c.cmc, c.type_line, c.oracle_text, c.keywords
+                {tags_filter}
+                ORDER BY
+                    CASE
+                        WHEN c.name ILIKE %s THEN 1
+                        WHEN c.oracle_text ILIKE %s THEN 2
+                        ELSE 3
+                    END,
+                    c.name
+                LIMIT %s
+                OFFSET %s
+            """, (f'%{query}%', f'%{query}%', f'{query}%', f'{query}%', limit, offset))
+        else:
+            # Build the tags filter condition for non-tag queries
+            tags_filter = "AND EXISTS (SELECT 1 FROM card_tags WHERE card_id = cards.id)" if tags else ""
+
+            cursor.execute(f"""
+                SELECT
+                    id,
+                    name,
+                    mana_cost,
+                    cmc,
+                    type_line,
+                    oracle_text,
+                    keywords
+                FROM cards
+                WHERE
+                    (name ILIKE %s OR oracle_text ILIKE %s)
+                    {tags_filter}
+                ORDER BY
+                    CASE
+                        WHEN name ILIKE %s THEN 1
+                        WHEN oracle_text ILIKE %s THEN 2
+                        ELSE 3
+                    END,
+                    name
+                LIMIT %s
+                OFFSET %s
+            """, (f'%{query}%', f'%{query}%', f'{query}%', f'{query}%', limit, offset))
 
         cards = cursor.fetchall()
 
@@ -327,7 +386,9 @@ def parse_query_with_negations(query: str) -> Tuple[str, List[str]]:
 async def semantic_search(
     query: str = Query(..., description="Natural language query for semantic search"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
-    offset: int = Query(0, ge=0, description="Number of results to skip for pagination")
+    offset: int = Query(0, ge=0, description="Number of results to skip for pagination"),
+    include_tags: bool = Query(True, description="Include tags for each card"),
+    tags: bool = Query(True, description="If true, only return cards that have tags")
 ):
     """
     Semantic search for cards using natural language queries and vector similarity.
@@ -340,6 +401,8 @@ async def semantic_search(
     - /api/cards/semantic?query=artifact removal
     - /api/cards/semantic?query=flying creatures
     - /api/cards/semantic?query=counterspells&limit=10&offset=10 (pagination)
+    - /api/cards/semantic?query=counterspells&include_tags=true
+    - /api/cards/semantic?query=counterspells&tags=false (include cards without tags)
     """
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty")
@@ -347,17 +410,17 @@ async def semantic_search(
     # Parse query using LLM
     parser = get_query_parser()
     parsed = parser.parse_query(query)
-    
+
     positive_query = parsed.get('positive_query', '').strip()
     exclusions = parsed.get('exclusions', [])
-    
+
     # If no positive query left, return error
     if not positive_query and exclusions:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Query only contains exclusions: {', '.join(exclusions)}. Please provide what to search for."
         )
-    
+
     # If no positive query and no exclusions, return empty
     if not positive_query:
         return {
@@ -403,9 +466,82 @@ async def semantic_search(
 
         # Combine exclusion conditions with AND
         exclusion_sql = " AND ".join(exclusion_conditions) if exclusion_conditions else "TRUE"
-        
-        query_sql = f"""
-            WITH ranked_cards AS (
+
+        # Build the tags filter condition
+        tags_filter = "HAVING COUNT(t.id) > 0" if tags else ""
+
+        if include_tags:
+            query_sql = f"""
+                WITH ranked_cards AS (
+                    SELECT
+                        id,
+                        name,
+                        mana_cost,
+                        cmc,
+                        type_line,
+                        oracle_text,
+                        keywords,
+                        released_at,
+                        1 - (embedding <=> %s::vector) as similarity,
+                        ROW_NUMBER() OVER (PARTITION BY name ORDER BY released_at DESC NULLS LAST) as rn
+                    FROM cards
+                    WHERE embedding IS NOT NULL
+                      AND {exclusion_sql}
+                )
+                SELECT
+                    rc.id,
+                    rc.name,
+                    rc.mana_cost,
+                    rc.cmc,
+                    rc.type_line,
+                    rc.oracle_text,
+                    rc.keywords,
+                    rc.similarity,
+                    COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'id', t.id,
+                                'name', t.name,
+                                'display_name', t.display_name,
+                                'category', tc.display_name,
+                                'confidence', ct.confidence
+                            ) ORDER BY ct.confidence DESC
+                        ) FILTER (WHERE t.id IS NOT NULL),
+                        '[]'::json
+                    ) as tags
+                FROM ranked_cards rc
+                LEFT JOIN card_tags ct ON rc.id = ct.card_id
+                LEFT JOIN tags t ON ct.tag_id = t.id
+                LEFT JOIN tag_categories tc ON t.category_id = tc.id
+                WHERE rc.rn = 1
+                GROUP BY rc.id, rc.name, rc.mana_cost, rc.cmc, rc.type_line, rc.oracle_text, rc.keywords, rc.similarity
+                {tags_filter}
+                ORDER BY rc.similarity DESC
+                LIMIT %s
+                OFFSET %s
+            """
+        else:
+            # Build tags filter for non-tag queries
+            tags_where = "AND EXISTS (SELECT 1 FROM card_tags WHERE card_id = cards.id)" if tags else ""
+
+            query_sql = f"""
+                WITH ranked_cards AS (
+                    SELECT
+                        id,
+                        name,
+                        mana_cost,
+                        cmc,
+                        type_line,
+                        oracle_text,
+                        keywords,
+                        released_at,
+                        1 - (embedding <=> %s::vector) as similarity,
+                        ROW_NUMBER() OVER (PARTITION BY name ORDER BY released_at DESC NULLS LAST) as rn
+                    FROM cards
+                    WHERE embedding IS NOT NULL
+                      AND {exclusion_sql}
+                      {tags_where}
+                )
                 SELECT
                     id,
                     name,
@@ -414,32 +550,17 @@ async def semantic_search(
                     type_line,
                     oracle_text,
                     keywords,
-                    released_at,
-                    1 - (embedding <=> %s::vector) as similarity,
-                    ROW_NUMBER() OVER (PARTITION BY name ORDER BY released_at DESC NULLS LAST) as rn
-                FROM cards
-                WHERE embedding IS NOT NULL
-                  AND {exclusion_sql}
-            )
-            SELECT
-                id,
-                name,
-                mana_cost,
-                cmc,
-                type_line,
-                oracle_text,
-                keywords,
-                similarity
-            FROM ranked_cards
-            WHERE rn = 1
-            ORDER BY similarity DESC
-            LIMIT %s
-            OFFSET %s
-        """
-        
+                    similarity
+                FROM ranked_cards
+                WHERE rn = 1
+                ORDER BY similarity DESC
+                LIMIT %s
+                OFFSET %s
+            """
+
         # Combine all parameters
         all_params = [query_embedding] + exclusion_params + [limit, offset]
-        
+
         cursor.execute(query_sql, all_params)
         cards = cursor.fetchall()
 
@@ -793,6 +914,49 @@ async def get_rule_statistics():
         return {
             "count": len(rule_stats),
             "rules": [dict(r) for r in rule_stats]
+        }
+
+
+@app.get("/api/stats/tags", tags=["Analysis"])
+async def get_tag_statistics():
+    """Get statistics about card tags and confidence levels."""
+    with db_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        # Get total cards with tags
+        cursor.execute("""
+            SELECT COUNT(DISTINCT card_id) as total_cards_with_tags
+            FROM card_tags
+        """)
+        total_with_tags = cursor.fetchone()['total_cards_with_tags']
+
+        # Get cards with high confidence tags (>= 0.70)
+        cursor.execute("""
+            SELECT COUNT(DISTINCT card_id) as high_confidence_cards
+            FROM card_tags
+            WHERE confidence >= 0.70
+        """)
+        high_confidence = cursor.fetchone()['high_confidence_cards']
+
+        # Get cards with low confidence tags (< 0.70)
+        cursor.execute("""
+            SELECT COUNT(DISTINCT card_id) as low_confidence_cards
+            FROM card_tags
+            WHERE confidence < 0.70
+        """)
+        low_confidence = cursor.fetchone()['low_confidence_cards']
+
+        # Get average confidence across all tags
+        cursor.execute("""
+            SELECT ROUND(AVG(confidence)::numeric, 3) as avg_confidence
+            FROM card_tags
+        """)
+        avg_conf_result = cursor.fetchone()
+        avg_confidence = float(avg_conf_result['avg_confidence']) if avg_conf_result['avg_confidence'] else 0.0
+
+        return {
+            "total_cards_with_tags": total_with_tags,
+            "high_confidence_cards": high_confidence,
+            "low_confidence_cards": low_confidence,
+            "average_confidence": avg_confidence
         }
 
 
